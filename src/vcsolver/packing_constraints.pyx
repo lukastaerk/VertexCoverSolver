@@ -1,13 +1,14 @@
 # cython: language_level=3
-# cython: boundscheck=False
-# cython: wraparound=False
 import numpy as np
 cimport numpy as np
+import cython
 
 DTYPE = int 
 
 ctypedef np.int_t DTYPE_t
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cdef class Packing:
     cdef np.ndarray neighborhood
     cdef np.ndarray vc_solution

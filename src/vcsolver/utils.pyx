@@ -1,10 +1,11 @@
 # cython: language_level=3
-# cython: boundscheck=False
-# cython: wraparound=False
 
 from cython.view cimport array as cvarray
 import numpy as np
+import cython
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
 def set_remove_for_set(list adj, set  vertices, int v):
     cdef int i
     for i in vertices:
