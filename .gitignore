@@ -4,5 +4,7 @@ build/**
 data/**
 **darwin.so 
 **.c
+**/__pycache__
+**.pyc
 
 ```

@@ -1,3 +1,7 @@
+# cython: language_level=3
+# cython: boundscheck=False
+# cython: wraparound=False
+
 from cython.view cimport array as cvarray
 import numpy as np
 
@@ -16,7 +20,7 @@ cpdef void set_add_for_array(list adj, int[:] degrees, int[:] vertices):
     for (d, v) in zip(degrees, vertices):
         adj[d].add(v)
 
-def degrees_update_for_array(list adj, list deg_bags, int[:] degrees, list vertices):
+cpdef void degrees_update_for_array(list adj, list deg_bags, int[:] degrees, list vertices):
     cdef int d
     cdef int v
     for v in vertices:
@@ -49,21 +53,5 @@ cpdef void add_edges_for_array(list adj, list vertices, list old):
             adj[u].add(v)
         i += 1
         
-
-cpdef list dom_helper(int v, list adj_list):
-    cdef set v_neighbors, u_neighbors
-    v_neighbors = adj_list[v]
-    v_neighbors.add(v)
-    cdef list tmp_vc_addition = list()
-    for u in v_neighbors: 
-        if u == v: continue
-        u_neighbors = adj_list[u]
-        u_neighbors.add(u)
-        if v_neighbors.issubset(u_neighbors):
-            tmp_vc_addition.append(u)
-        u_neighbors.remove(u)
-
-    v_neighbors.remove(v)
-    return tmp_vc_addition
 
 

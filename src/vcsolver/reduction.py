@@ -1,9 +1,8 @@
 from vc_graph import VCGraph
-from branch_and_bound import update_max_deg
-from utils import dom_helper
+from simple_lp_rule import simple_lp_rule
+from max_bipartite_matching import maximum_bipartite_matching
 import numpy as np
-from hopcroft_karp import hopcroft_karp
-from collections import defaultdict
+
 
 RED_MATRIX = np.array(
     [
@@ -76,7 +75,6 @@ def is_unconfined(g: VCGraph, v: int) -> bool:
             # in an efficient manner.. sets don't support indexing
             S.add(w)
             unclear = True  # do the loop again
-
     return False
 
 
@@ -106,178 +104,51 @@ def unconfined_rule(g: VCGraph, k: int) -> "bool, list(int), int":
     return flag, vc_additions, num_revert
 
 
-def lp_rule_get_bip_graph(g: VCGraph, current_vertices: list) -> (set, set, dict):
-    # We construct the sets L and R of the bipartite graph by considering
-    # the current vertices of g.
-    # Since we want unique names for the vertices in L and R, we give the vertices
-    # in L their original names and for the vertices in R, we use the original names
-    # plus an offset.
-    # We will fill the two sets in the for loop below.
-    l_vertices = set()
-    r_vertices = set()
-    # this will be an adjacency list (i.e. a dict with vertices as keys and sets (neighbors) as values)
-    g_prime_edges = dict()
-    offset = len(g.adj_list)  # required for unique naming of the vertices in R
-    for v in current_vertices:
-        # For every edge {u,v} in the current edge set, add edges
-        # {l_u, r_v} and {l_v, r_u} to the edge set of the new bipartite graph
-        # Init L set
-        g_prime_edges[v] = list([u + offset for u in g.adj_list[v]])
-        # Init R set
-        g_prime_edges[v + offset] = list(g.adj_list[v])
-        l_vertices.add(v)
-        r_vertices.add(v + offset)
-
-    return l_vertices, r_vertices, g_prime_edges
-
-
-# This is a modified BFS that takes as input a bipartite graph (L union R, adjlist)
-# where L, R: sets of integers and adjlist: dict with vertices (int) as keys and
-# lists of neighbors (int) as values. Furthermore, we require a maximum matching
-# (pair_L, pair_R) [may contain unmatched vertices].
-#
-# Let U be the set of unmatched vertices in L.
-# Then this procedure constructs a set Z that consists of vertices that are either
-# in U or are connected to U by alternating paths. These are paths that start in
-# a vertex in U and then alternate between edges that are not in the matching and edges
-# that are in the matching.
-def koenig_bfs(L: set, R: set, adjlist: dict, pair_L: dict, pair_R: dict) -> set:
-    matched = dict()  # to be able to check for unmatched vertices
-    U = set()
-    for i in L:
-        if pair_L[i] is None:
-            matched[i] = True
-            U.add(i)
-        else:
-            matched[i] = True
-    for r in R:
-        if pair_R[r] is not None:
-            matched[r] = True
-        else:
-            matched[r] = False
-    Z = U.copy()
-    for u in U:
-        discovered = defaultdict(bool)
-        discovered[u] = True
-        queue = list()
-        queue.insert(0, u)
-        while len(queue) != 0:
-            v = queue.pop()
-            if matched[v] and v in R:
-                w = pair_R[v]
-                if discovered[w]:
-                    continue
-                discovered[w] = True
-                Z.add(w)
-                queue.insert(0, w)
-            else:
-                for w in adjlist[v]:  # for all unmatched edges vw:
-                    if discovered[w]:
-                        continue
-                    discovered[w] = True
-                    Z.add(w)
-                    queue.insert(0, w)
-    return Z
-
-
-# min_vc is supposed to be a minimal vertex cover for the constructed bipartite graph,
-# not the original graph g!
-# However, current_vertices is the list of current vertices in the original graph g.
-def lp_rule_set_sol_variables(g: VCGraph, current_vertices: list, min_vc: set) -> dict:
-    x = dict(zip(current_vertices, [1 / 2] * len(current_vertices)))  # LP relaxation solution
-    offset = len(g.adj_list)  # offset is used for naming of R vertices
-    for v in current_vertices:
-        l_v = v
-        r_v = v + offset
-        if l_v in min_vc and r_v in min_vc:
-            x[v] = 1
-        if l_v not in min_vc and r_v not in min_vc:
-            x[v] = 0
-    return x
-
-
-def lp_rule_compute_sol(g: VCGraph) -> list:
-    current_vertices = g.get_current_vertices()
-
-    # Construct the special bipartite graph g_prime from g
-    L, R, adjlist = lp_rule_get_bip_graph(g, current_vertices)
-
-    # HK requires L: set, R: set, adjlist: dict and returns maximum matching pair_L, pair_R = (dict, dict)
-    pair_L, pair_R = hopcroft_karp(L, R, adjlist)
-
-    # Given the maximum matching (pair_L, pair_R) use König's Theorem to obtain a minimum
-    # vertex cover for g_prime
-    Z = koenig_bfs(L, R, adjlist, pair_L, pair_R)
-    min_vc = L.difference(Z).union(R.intersection(Z))
-
-    # Now, using min_vc, set the variables x_v of the LP relaxation
-    x = lp_rule_set_sol_variables(g, current_vertices, min_vc)
-    return x
-
-
-def simple_lp_rule(g: VCGraph, k: int, improvement_mode: bool = False) -> "bool, list(int), int":
-    # Compute the solution (i.e. the values for the variables x_v) of the LP relaxation
-    x = lp_rule_compute_sol(g)
-
-    # Given the optimal solution x for the LP relaxation, we define the sets (as arrays)
-    # we need for the reduction
-    V1 = [key for (key, val) in x.items() if val == 1]  # pick all indices (i.e. vertices) that are in the VC of g_prime
-    V0 = [key for (key, val) in x.items() if val == 0]  # pick all vertices that are not in the VC of g_prime
-    Vother = [key for (key, val) in x.items() if val == 0.5]  # the remaining vertices
-
-    # We now apply the reduction
-    # From the lecture, we know that the vertices in V1 are a subset of the VC of g
-    # and vertices in V0 are definitely not in the VC of g
-    vc_additions = V1
-    flag = True
-    #   We do this check here to avoid the edge removal effort, in case this LP rule
-    #   application turned out to be fruitless (i.e. we already have a too big VC).
-    if len(vc_additions) > k:
-        flag = False
-        return flag, [], 0
-
-    # TODO The easy & slow kernelization (see lec3, slide 9) might be used here now in order to increase
-    # the number of variables set to 1 (this improves the impact of the reduction rule)
-    # ...
-    if improvement_mode:
-        # (trial and error)
-        # for each vertex v check whether adding v to the vertex cover
-        # increases the LP solution. If not, set x_v = 1
-        pass  # TODO
-
-    num_revert = g.remove_edges_for_array(vc_additions)
-    g.num_hits_by_reduction_rule["lprule"] += len(vc_additions)
-    return flag, vc_additions, num_revert
-
-
 # TODO check if V and E is reduced graph or init graph
-def buss_rule(g: VCGraph, k: int, max_deg: int) -> bool:
+def buss_rule(g: VCGraph, k: int) -> (bool, [], 0):
     flag = True
-    if max_deg > k:
+    if g.max_deg > k:
         raise Exception("apply high degree rule first!")
     #    num_V = g.init_num_vertices - len(g.deg_bags[0])
     num_V = g.get_num_vertices()
     # |V| > k^2 + k or |E|>k^2
     if num_V > k**2 + k or g.num_edges > k**2:
         flag = False
-    return flag
+    return flag, [], 0
 
 
-def domination_rule(g: VCGraph, k: int, max_deg: int) -> "bool, list(int), int":
+# domination rule
+def find_domination_vertex(v: int, adj_list: list):
+    v_neighbors = adj_list[v]
+    v_neighbors.add(v)
+    tmp_vc_addition = list()
+    for u in v_neighbors:
+        if u == v:
+            continue
+        u_neighbors = adj_list[u]
+        u_neighbors.add(u)
+        if v_neighbors.issubset(u_neighbors):
+            tmp_vc_addition.append(u)
+        u_neighbors.remove(u)
+
+    v_neighbors.remove(v)
+    return tmp_vc_addition
+
+
+def domination_rule(g: VCGraph, k: int) -> "bool, list(int), int":
     flag = True
     vc_additions = list()
     num_revert = 0
 
-    if max_deg < 3:
+    if g.max_deg < 3:
         return flag, vc_additions, num_revert
 
     relevant_vertices = g.recently_updated_vertices
-    # g.recently_updated_vertices.clear() # remove all vertices because we have a copy
     while len(relevant_vertices) > 0:  # relevant_vertices: case <= 2 is handled by other reduction rules
         v = relevant_vertices.pop()
         if g.degrees[v] <= 2:
             continue
-        tmp_vc_addition = dom_helper(v, g.adj_list)  # find dom vertex to cover
+        tmp_vc_addition = find_domination_vertex(v, g.adj_list)
         if len(tmp_vc_addition) > 0:
             num_revert += g.remove_edges_for_array(tmp_vc_addition)
             vc_additions.extend(tmp_vc_addition)
@@ -316,12 +187,12 @@ def deg_1(g: VCGraph, k: int = float("inf")) -> "bool, list(int), int":
     return flag, vc_additions, num_revert
 
 
-def deg_2(g: VCGraph, k: int = float("inf"), max_deg: int = 0) -> "bool, list(int), int, int, int":
+def deg_2(g: VCGraph, k: int = float("inf")) -> "bool, list(int), int, int":
     flag = True
     num_merges = 0
     num_revert = 0
     if len(g.deg_bags[2]) == 0:
-        return flag, [], num_revert, num_merges, max_deg
+        return flag, [], num_revert, num_merges
     # remove single triangle and rectangles
     vc_additions = list()
 
@@ -339,21 +210,21 @@ def deg_2(g: VCGraph, k: int = float("inf"), max_deg: int = 0) -> "bool, list(in
         else:  # ' MERGE '
             num_merges += 1
             num_revert += g.merge_deg2(v, x, y)
-            if g.degrees[v] > max_deg:
-                max_deg = g.degrees[v]
+            if g.degrees[v] > g.max_deg:
+                g.set_max_deg(g.degrees[v])
 
     g.num_hits_by_reduction_rule["deg_2"] += num_merges + len(vc_additions)
-    return flag, vc_additions, num_revert, num_merges, max_deg
+    return flag, vc_additions, num_revert, num_merges
 
 
-def high_degree(g: VCGraph, k: int, max_deg: int) -> "bool, list(int), int":
+def high_degree(g: VCGraph, k: int) -> "bool, list(int), int":
     flag = True
     num_revert = 0
     if k < 0:
         flag = False
         return flag, [], num_revert
 
-    high_degree_vertices = list(set.union(*g.deg_bags[k + 1 : max_deg + 1]))
+    high_degree_vertices = list(set.union(*g.deg_bags[k + 1 : g.max_deg + 1]))
     num_revert = 0
     if k - len(high_degree_vertices) < 0:
         flag = False
@@ -386,6 +257,7 @@ def get_all_neighbors(graph, neighbors):
     return map(lambda key: graph[key], filter(lambda n: n in graph, neighbors))
 
 
+# crown rule
 def find_crown(g: VCGraph) -> "set, set":
     maximal_matching, A_vertices = find_maximal_matching(g)
     B_vertices = set.union(*g.deg_bags[1:])  # all vertices of the graph deg_0 left out
@@ -409,7 +281,7 @@ def find_crown(g: VCGraph) -> "set, set":
 
     adjlist_AB = B_graph.copy()
     adjlist_AB.update(A_graph)
-    pair_A, pair_B = hopcroft_karp(A_vertices, B_vertices, adjlist_AB)
+    pair_A, pair_B = maximum_bipartite_matching(A_vertices, B_vertices, adjlist_AB)
     matching = np.array([(k, v) for k, v in pair_B.items() if v is not None])
     vc_candidates_B, vc_candidates_A = matching[:, 0], matching[:, 1]
 
@@ -472,16 +344,15 @@ def packing_reduction(g: VCGraph, k: int) -> "bool, list(int), int":
     return flag, in_cover, num_revert
 
 
-def deg3_ind_set(g: VCGraph, max_deg: int) -> "bool, list(int), int, int":
+def deg3_ind_set(g: VCGraph, k: int) -> "bool, list(int), int, int":
     """
     :param g: graph
-    :param max_deg: max degree of the graph
-    :return: flag, list of vertices to remove, num_revert, max_deg
+    :return: flag, list of vertices to remove, num_revert
     """
     flag, num_revert = 1, 0
     checked_vertices = set()
     if len(g.deg_bags[3]) == 0:
-        return flag, [], num_revert, max_deg
+        return flag, [], num_revert
     while True:
         deg3 = g.get_vertices_by_degree(3)
         deg3_queue = deg3 - checked_vertices
@@ -497,113 +368,74 @@ def deg3_ind_set(g: VCGraph, max_deg: int) -> "bool, list(int), int, int":
             g.num_hits_by_reduction_rule["deg3_ind_set"] += 1
             local_num_revert, local_max_deg = g.merge_deg3(v)
             num_revert += local_num_revert
-            max_deg = max(max_deg, local_max_deg)
+            g.set_max_deg(max(g.max_deg, local_max_deg))
         checked_vertices.update({v})
-    return flag, [], num_revert, max_deg
+    return flag, [], num_revert
 
 
 def perform_reduction(
     g: VCGraph,
     k: int,
-    max_deg: int,
-    red_grp: int = 2,
-    red_freq: int = 0,
+    reduction_grouping: int = 2,
+    reduction_frequency: int = 0,
     rec_steps: int = -1,
     preprocessing=False,
-) -> "bool, list(int), int, int":
+) -> "(bool, list(int), int, int)":
+    """
+    g: graph
+    k: current k
+    reduction_grouping: 0,...,5
+    reduction_frequency: 0,...,3
+    rec_steps: recursion steps
+    preprocessing: True if preprocessing is performed
+
+    return: flag, vc, num_revert, k
+    """
     # CASE 1
     flag = True
     vc = list()
     num_revert = 0
+    # a dictionary of the form {rule_name: (condition function, function)}
+    # condition: True if rule is applicable, False otherwise
+    # function: function that applies the rule
+    rule_dict = {
+        "packing": (lambda: g.Packing and g.Packing.packing_is_violated, packing_reduction),
+        "deg_1": (lambda: RED_MATRIX[reduction_grouping]["deg_1"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["deg_1"] == 0, 
+                  deg_1),
+        "deg_2": (lambda: RED_MATRIX[reduction_grouping]["deg_2"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["deg_2"] == 0
+                  , deg_2),
+        "high_deg": (lambda: RED_MATRIX[reduction_grouping]["high_deg"] and k < g.max_deg and not preprocessing,
+                    high_degree),
+        "buss": (lambda: RED_MATRIX[reduction_grouping]["buss"] and not preprocessing,
+                buss_rule),
+        "dom": (lambda: RED_MATRIX[reduction_grouping]["dom"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["dom"] == 0,
+                domination_rule),
+        "crown": (lambda: RED_MATRIX[reduction_grouping]["crown"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["crown"] == 0,
+                   crown_rule),
+        "deg3_ind_set": (lambda: RED_MATRIX[reduction_grouping]["deg3_ind_set"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["deg3_ind_set"] == 0, deg3_ind_set),
+        "lprule": (lambda: RED_MATRIX[reduction_grouping]["lprule"], simple_lp_rule),
+        "unconfined": (lambda: RED_MATRIX[reduction_grouping]["unconfined"], unconfined_rule),
+    }
     while True:
-        if g.Packing and g.Packing.packing_is_violated():
-            flag = 0
+        if not flag:
             break
-        if g.Packing and g.Packing.has_reduction():
-            flag, vc_re, re = packing_reduction(g, k)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break  # vc and re might be non-empty
-            if len(vc_re) > 0:
-                continue
-        if (
-            RED_MATRIX[red_grp]["deg_1"] and (rec_steps + 1) % RED_FREQ[red_freq]["deg_1"] == 0
-        ):  # TODO possible speed-up
-            flag, vc_re, re = deg_1(g, k)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break  # vc and re might be non-empty
-            if len(vc_re) > 0:
-                continue
-        if RED_MATRIX[red_grp]["deg_2"] and (rec_steps + 1) % RED_FREQ[red_freq]["deg_2"] == 0:  # deg_2 rule TODO
-            flag, vc_re, re, num_merges, max_deg = deg_2(g, k, max_deg)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re) + num_merges
-            if not flag:
-                break
-            if len(vc_re) + num_merges > 0:
-                continue
-        max_deg = update_max_deg(g, max_deg)
-        if RED_MATRIX[red_grp]["high_deg"] and k < max_deg and not preprocessing:
-            flag, vc_re, re = high_degree(g, k, max_deg)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break
-            if len(vc_re) > 0:
-                continue
-        max_deg = update_max_deg(g, max_deg)
-        if RED_MATRIX[red_grp]["buss"] and not preprocessing:
-            flag = buss_rule(g, k, max_deg)
-            if not flag:
-                break
-        if RED_MATRIX[red_grp]["dom"] and (rec_steps + 1) % RED_FREQ[red_freq]["dom"] == 0:
-            flag, vc_re, re = domination_rule(g, k, max_deg)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break
-            if len(vc_re) > 0:
-                continue
-        if RED_MATRIX[red_grp]["crown"] and (rec_steps + 1) % RED_FREQ[red_freq]["crown"] == 0:
-            flag, vc_re, re = crown_rule(g, k)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break
-            if len(vc_re) > 0:
-                continue
-        if RED_MATRIX[red_grp]["deg3_ind_set"] and (rec_steps + 1) % RED_FREQ[red_freq]["deg3_ind_set"] == 0:
-            flag, vc_re, re, max_deg = deg3_ind_set(g, max_deg)
-            num_revert += re
-            if not flag:
-                break
-        if RED_MATRIX[red_grp]["lprule"]:
-            flag, vc_re, re = simple_lp_rule(g, k)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break
-            if len(vc_re) > 0:
-                continue
-        if RED_MATRIX[red_grp]["unconfined"]:
-            flag, vc_re, re = unconfined_rule(g, k)
-            vc.extend(vc_re)
-            num_revert += re
-            k -= len(vc_re)
-            if not flag:
-                break
-            if len(vc_re) > 0:
-                continue
+        if g.Packing and g.Packing.packing_is_violated():
+            flag = False
+            break
+        for cond_func, rule_func in rule_dict.values():
+            #g.update_max_deg()
+            if cond_func():
+                flag, vc_re, re, *extras = rule_func(g, k)
+                vc.extend(vc_re)
+                num_revert += re
+                num_merges = 0
+                if len(extras) > 0:
+                    num_merges = extras[0]
+                k -= (len(vc_re) + num_merges)
+                if not flag:
+                    break  # if the flag is false, it indicates that there is no VC of size k and we break the while-loop after the for-loop.
+                if len(vc_re) + num_merges > 0:
+                    break  # if we reduced something, we want to start over with the first rule
         break
 
-    return flag, vc, num_revert, k, max_deg
+    return flag, vc, num_revert, k

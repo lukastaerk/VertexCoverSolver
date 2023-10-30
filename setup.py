@@ -3,15 +3,15 @@ from Cython.Build import cythonize
 import numpy
 
 extentions = [
-    Extension("solver.utils", ["solver/utils.pyx"], include_dirs=[numpy.get_include()]),
-    Extension("solver.packing_constraints", ["solver/packing_constraints.pyx"], include_dirs=[numpy.get_include()]),
-    Extension("solver.clique_cover", ["solver/clique_cover.pyx"], include_dirs=[numpy.get_include()]),
+    Extension("src.vcsolver.utils", ["src/vcsolver/utils.pyx"], include_dirs=[numpy.get_include()]),
+    Extension("src.vcsolver.packing_constraints", ["src/vcsolver/packing_constraints.pyx"], include_dirs=[numpy.get_include()]),
+    Extension("src.vcsolver.clique_cover", ["src/vcsolver/clique_cover.pyx"], include_dirs=[numpy.get_include()]),
 ]
 
 setup(
-    name="VCSolver",
+    name="vcsolver",
     ext_modules=cythonize(extentions),
     # include_dirs=[numpy.get_include()],
-    packages=find_packages(),
+    packages=find_packages("src/vcsolver"),
     zip_safe=False,
 )

@@ -8,14 +8,13 @@ from utils import (
     remove_edges_for_array,
     add_edges_for_array,
 )
-from graph_tool import Graph
 from packing_constraints import Packing
 from clique_cover import CliqueCover
 
 
 def generate_deg_bags(degrees, indices):
     max_deg = max(degrees.max(), 3)  # deg_bags at least of size 3 to apply deg3 checks without index error
-    degrees, indices = degrees.astype("int32"), indices.astype("int32")
+    degrees, indices = degrees.astype(np.int32), indices.astype(np.int32)
     deg_bags = list([set() for _ in range(max_deg + 1)])
     set_add_for_array(deg_bags, degrees, indices)
     return deg_bags
@@ -31,27 +30,24 @@ class VCGraph:
     def __init__(
         self,
         adj_list: list,
-        edges: np.ndarray,
-        num_vertices: int,
-        vc_solution=[],
-        degrees=[],
-        deg_bags=[],
-        gt_graph=Graph(directed=False),
+        vc_solution: np.ndarray = None,
+        degrees: np.ndarray = None,
+        deg_bags: np.ndarray = None,
     ):
-        self.gt_G = gt_graph  # gt_G is init in preprocessing with edges
-        self.edges = edges  # edges are updated in preprocessing
+
         self.adj_list = adj_list
-        if len(vc_solution) == 0:
-            vc_solution = np.zeros(num_vertices, dtype=bool)
-        self.vc_solution = vc_solution  # -1 unknown, 1 solution, 0 removed array indicating which vertex is part of the finished solution
-        self.num_edges = len(edges)
-        if len(degrees) == 0:
+        self.init_num_vertices = len(adj_list)  # is the actual number of vertices at init time for subgraphs
+        if vc_solution is None:
+            vc_solution = np.zeros(self.init_num_vertices, dtype=bool)
+        self.vc_solution = vc_solution  # (-1 unknown, 1 solution, 0 removed) array indicating which vertex is part of the finished solution
+        if degrees is None:
             degrees = np.array(list(map(len, adj_list)), dtype="int32")
-        if len(deg_bags) == 0:
+        if deg_bags is None:
             deg_bags = generate_deg_bags(degrees, np.arange(len(degrees), dtype="int32"))
         self.degrees = degrees
+        self.num_edges = sum(degrees) // 2
         self.deg_bags = deg_bags
-        self.init_num_vertices = num_vertices  # is the actual number of vertices at init time for subgraphs
+        self.max_deg = degrees.max()
         self.merge_stack = (
             list()
         )  # deg_2 rule push((u,v,w)) -> merge_deg2(u,v,w)-> u' return revert_merge  --v--u--w--x--y-- last in first out
@@ -199,7 +195,7 @@ class VCGraph:
         extra_deg_bags = [set() for _ in range(num_missing_deg_bags)]
         self.deg_bags.extend(extra_deg_bags)
 
-    def update_solution(self, vertices, flag: bool):
+    def update_solution(self, vertices, flag: int):
         self.vc_solution[vertices] = flag
 
     # Returns the current number of vertices of this graph
@@ -215,7 +211,8 @@ class VCGraph:
     # branching).
     # CAUTION: Costly operation
     def get_current_vertices(self) -> list:
-        return list(set.union(*self.deg_bags[1:]))
+        return list(set(range(len(self.adj_list))) - self.deg_bags[0])
+        # return list(set.union(*self.deg_bags[1:]))
 
     def get_vertices_by_degree(self, deg: int) -> set:
         return self.deg_bags[deg]
@@ -243,7 +240,17 @@ class VCGraph:
     def update_degrees(self, vertices: list):
         degrees_update_for_array(self.adj_list, self.deg_bags, self.degrees, vertices)
 
+    def update_max_deg(self) -> int:
+        while (
+            len(self.deg_bags[self.max_deg]) == 0 and self.max_deg > 0
+        ):  # while bag of vertices for given degree is empty, lower max_deg by 1
+            self.max_deg -= 1
+        return self.max_deg
+
     # removes edges
+    def set_max_deg(self, deg: int):
+        self.max_deg = deg
+
     def remove_edges_for_array(self, vertices: list, packing_init=False, v=None) -> int:
         last_len_rs = len(self.revert_stack)
         if len(vertices) == 0:
@@ -277,7 +284,7 @@ class VCGraph:
         return len(self.revert_stack) - last_len_rs
 
     # update
-    def remove_edges(self, v: int, neighbors: set, update: bool = True, packing_init=False) -> "function":
+    def remove_edges(self, v: int, neighbors: set, update: bool = True, packing_init=False) -> lambda: "add_edges":
         """
         removes all edges of v
         param: int v
@@ -309,7 +316,9 @@ class VCGraph:
 
         return lambda: self.add_edges(v, neighbors, update, packing_init)
 
-    def add_edges(self, v: int, neighbors: set, update: bool = True, packing_init=False) -> "function":
+    def add_edges(
+        self, v: int, neighbors: set, update: bool = True, packing_init: bool = False
+    ) -> lambda: "remove_edges":
         """add back old edges of v to its neighbors"""
         self.adj_list[v].update(neighbors)
         set_add_for_set(self.adj_list, neighbors, v)

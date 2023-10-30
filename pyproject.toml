@@ -1,6 +1,10 @@
+[project]
+name = "vcsolver"
+version = "0.1.0"
+description = "A Vertex Cover Solver Branch and Reduce"
 [tool.black]
 line-length = 120
-target-version = ['py36', 'py37', 'py38', 'py39']
+target-version = ['py39']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -15,4 +19,7 @@ exclude = '''
   | dist
 )/
 '''
+[build-system]
+requires = ["setuptools ~= 68.0.0", "numpy~=1.23.5", "Cython~=0.29.34"]
+
 
