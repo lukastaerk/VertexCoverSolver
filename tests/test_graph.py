@@ -9,7 +9,7 @@ from vcsolver.vc_solver import VCSolver
 class TestGraph(unittest.TestCase):
 
     def setUp(self):
-        instance = "../data/2-social-networks/09-email.graph"
+        instance = "../data/3-medium-sized/vc005"
         file = open(instance+".dimacs", "r")
         self.mock_stdin(file.read())
         file.close()
@@ -19,7 +19,7 @@ class TestGraph(unittest.TestCase):
         adjacency, edges = read_graph_fast()
         self.start_time = time.time()
         self.graph = VCGraph(adjacency)
-        self.solver = VCSolver(len(adjacency), time_limit=50 + self.start_time)
+        self.solver = VCSolver(len(adjacency), time_limit=50 + self.start_time, print_lower_bound=True)
 
     def mock_stdin(self, mock_input):
         sys.stdin = io.StringIO(mock_input)
@@ -37,7 +37,8 @@ class TestGraph(unittest.TestCase):
         end_time = time.time()
         self.assertEqual(vc.size, self.solution)
         print("Time taken: ", end_time - start_time)
-        self.assertGreaterEqual(8, end_time - start_time)
+        self.assertGreaterEqual(17, end_time - start_time)
+        print("# ",self.solver.reduction_hit_counter)
 
 if __name__ == "__main__":
     unittest.main()

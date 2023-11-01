@@ -2,7 +2,7 @@
 
 from cython.view cimport array as cvarray
 import numpy as np
-import cython
+import cython 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -33,8 +33,8 @@ cpdef void degrees_update_for_array(list adj, list deg_bags, int[:] degrees, lis
 
 def remove_edges_for_array(list adj, list vertices):
     cdef int v,u
-    cpdef list old = list()
-    cpdef set s
+    cdef list old = list()
+    cdef set s
     num_edges = 0
     for v in vertices:
         s = adj[v]
@@ -54,5 +54,3 @@ cpdef void add_edges_for_array(list adj, list vertices, list old):
             adj[u].add(v)
         i += 1
         
-
-

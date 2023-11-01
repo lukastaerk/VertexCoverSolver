@@ -8,7 +8,7 @@ def read_graph_fast():
     num_edges = int(first_line[1])
     adjacency_list = [set() for _ in range(num_vertices)]
     data = sys.stdin.read()
-    edges = np.fromstring(data, dtype=np.uint32, sep=" ")
+    edges = np.fromstring(data, dtype=np.intc, sep=" ")
     edges = edges - 1
     edges = edges.reshape((num_edges, 2))
 

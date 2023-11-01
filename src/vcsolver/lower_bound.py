@@ -18,7 +18,7 @@ def get_csr_adj_matrix(edges, num_vertices) -> "csr_matrix":
     return csr_matrix(
         (data, (edges_u, edges_v)),
         shape=(num_vertices * 2, num_vertices * 2),
-        dtype=np.bool,
+        dtype=bool,
     )
 
 

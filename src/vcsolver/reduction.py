@@ -3,43 +3,17 @@ from simple_lp_rule import simple_lp_rule
 from max_bipartite_matching import maximum_bipartite_matching
 import numpy as np
 
-
-RED_MATRIX = np.array(
-    [
-        (True, False, True, False, False, False, False, False, False),
-        (True, False, True, True, True, False, False, False, False),
-        (True, True, True, True, True, False, False, False, False),
-        (True, False, True, True, False, True, False, False, False),
-        (True, True, True, True, True, True, False, False, False),
-        (False, False, False, False, False, False, False, False, False),
-        (True, False, True, True, False, False, True, False, False),
-        (True, False, True, True, False, False, False, True, False),
-        (True, True, True, True, True, False, False, True, False),
-        (True, True, True, True, True, False, False, False, True),
-    ],
-    dtype=[
-        ("deg_1", "bool"),
-        ("deg_2", "bool"),
-        ("high_deg", "bool"),
-        ("buss", "bool"),
-        ("dom", "bool"),
-        ("crown", "bool"),
-        ("lprule", "bool"),
-        ("unconfined", "bool"),
-        ("deg3_ind_set", "bool"),
-    ],
-)
-RED_FREQ = np.array(
-    [(1, 1, 1, 1, 1), (1, 1, 1, 5, 1), (1, 1, 1, 10, 1), (1, 10, 1, 20, 1)],
-    dtype=[
-        ("deg_1", "int"),
-        ("deg_2", "int"),
-        ("dom", "int"),
-        ("crown", "int"),
-        ("deg3_ind_set", "int"),
-    ],
-)
-
+reduction_setting = {
+    "deg_1": {"is_on": True, "frequency": 1},
+    "deg_2": {"is_on": True, "frequency": 1},
+    "high_deg": {"is_on": True, "frequency": 1},
+    "buss": {"is_on": True, "frequency": 1},
+    "dom": {"is_on": True, "frequency": 1},
+    "crown": {"is_on": False, "frequency": 1},
+    "lprule": {"is_on": False, "frequency": 1},
+    "unconfined": {"is_on": False, "frequency": 1},
+    "deg3_ind_set": {"is_on": False, "frequency": 1},
+}
 
 def is_unconfined(g: VCGraph, v: int) -> bool:
     S = set([v])
@@ -108,7 +82,7 @@ def unconfined_rule(g: VCGraph, k: int) -> "bool, list(int), int":
 def buss_rule(g: VCGraph, k: int) -> (bool, [], 0):
     flag = True
     if g.max_deg > k:
-        raise Exception("apply high degree rule first!")
+        raise Exception("Apply high-degree rule first!")
     #    num_V = g.init_num_vertices - len(g.deg_bags[0])
     num_V = g.get_num_vertices()
     # |V| > k^2 + k or |E|>k^2
@@ -139,10 +113,8 @@ def domination_rule(g: VCGraph, k: int) -> "bool, list(int), int":
     flag = True
     vc_additions = list()
     num_revert = 0
-
     if g.max_deg < 3:
         return flag, vc_additions, num_revert
-
     relevant_vertices = g.recently_updated_vertices
     while len(relevant_vertices) > 0:  # relevant_vertices: case <= 2 is handled by other reduction rules
         v = relevant_vertices.pop()
@@ -162,22 +134,25 @@ def domination_rule(g: VCGraph, k: int) -> "bool, list(int), int":
 def deg_1(g: VCGraph, k: int = float("inf")) -> "bool, list(int), int":
     flag = True
     num_revert = 0
-    if len(g.deg_bags[1]) == 0:
-        return flag, [], num_revert
     deg_1_vertices = g.deg_bags[1]
-
+    if not deg_1_vertices:
+        return flag, [], num_revert
+    
     deg_1_vertices_neighbors = set.union(*map(g.adj_list.__getitem__, deg_1_vertices))
     vc_additions = list(deg_1_vertices_neighbors.difference(deg_1_vertices))  # contains no vertices of degree 1
 
     # special case degree 1 remaining set of single edges
     # take only one vertex of each edge
-    single_edges = deg_1_vertices.intersection(deg_1_vertices_neighbors)
-    lesser_indices = set(
-        [v1 if v1 < list(g.adj_list[v1])[0] else list(g.adj_list[v1])[0] for v1 in single_edges]
-    )  # filter edges take lesser index
-    vc_additions.extend(list(lesser_indices))
+    single_edges = deg_1_vertices & deg_1_vertices_neighbors
+    lesser_indices = {min(v1, next(iter(g.adj_list[v1]))) for v1 in single_edges}
+    vc_additions.extend(lesser_indices)
+    #single_edges = deg_1_vertices.intersection(deg_1_vertices_neighbors)
+    #lesser_indices = set(
+    #    [v1 if v1 < list(g.adj_list[v1])[0] else list(g.adj_list[v1])[0] for v1 in single_edges]
+    #)  # filter edges take lesser index
+    #vc_additions.extend(list(lesser_indices))
 
-    # saves edge removal effort by doing this check here i nstead of in perform_reduction
+    # saves edge removal effort by doing this check here instead of in perform_reduction
     if len(vc_additions) > k:
         flag = False
         return flag, [], num_revert
@@ -225,13 +200,12 @@ def high_degree(g: VCGraph, k: int) -> "bool, list(int), int":
         return flag, [], num_revert
 
     high_degree_vertices = list(set.union(*g.deg_bags[k + 1 : g.max_deg + 1]))
-    num_revert = 0
     if k - len(high_degree_vertices) < 0:
         flag = False
         return flag, [], num_revert
 
     num_revert = g.remove_edges_for_array(high_degree_vertices)
-
+    g.update_max_deg()
     g.num_hits_by_reduction_rule["high_deg"] += len(high_degree_vertices)
     return flag, high_degree_vertices, num_revert
 
@@ -350,17 +324,15 @@ def deg3_ind_set(g: VCGraph, k: int) -> "bool, list(int), int, int":
     :return: flag, list of vertices to remove, num_revert
     """
     flag, num_revert = 1, 0
-    checked_vertices = set()
     if len(g.deg_bags[3]) == 0:
         return flag, [], num_revert
-    while True:
-        deg3 = g.get_vertices_by_degree(3)
-        deg3_queue = deg3 - checked_vertices
-        if len(deg3_queue) == 0:
-            break
-        v = next(iter(deg3_queue))
+    deg3_queue = g.get_vertices_by_degree(3).copy()
+    while deg3_queue:
+        v = deg3_queue.pop()
         neighbors_v = g.get_neighbors(v)
-        a, b, c = [i for i in neighbors_v]
+        if len(neighbors_v) != 3:
+            continue
+        a, b, c = neighbors_v
         neighbors_a = g.get_neighbors(a)
         neighbors_b = g.get_neighbors(b)
         # check if abc is independent set: a is not adjacent with b or c AND b is not adjacent with c
@@ -369,23 +341,18 @@ def deg3_ind_set(g: VCGraph, k: int) -> "bool, list(int), int, int":
             local_num_revert, local_max_deg = g.merge_deg3(v)
             num_revert += local_num_revert
             g.set_max_deg(max(g.max_deg, local_max_deg))
-        checked_vertices.update({v})
     return flag, [], num_revert
 
 
 def perform_reduction(
     g: VCGraph,
     k: int,
-    reduction_grouping: int = 2,
-    reduction_frequency: int = 0,
     rec_steps: int = -1,
     preprocessing=False,
 ) -> "(bool, list(int), int, int)":
     """
     g: graph
     k: current k
-    reduction_grouping: 0,...,5
-    reduction_frequency: 0,...,3
     rec_steps: recursion steps
     preprocessing: True if preprocessing is performed
 
@@ -399,43 +366,44 @@ def perform_reduction(
     # condition: True if rule is applicable, False otherwise
     # function: function that applies the rule
     rule_dict = {
-        "packing": (lambda: g.Packing and g.Packing.packing_is_violated, packing_reduction),
-        "deg_1": (lambda: RED_MATRIX[reduction_grouping]["deg_1"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["deg_1"] == 0, 
+        "packing": (lambda rs: g.Packing and g.Packing.packing_is_violated, packing_reduction),
+        "deg_1": (lambda rs: preprocessing or (reduction_setting["deg_1"]["is_on"] and (rs + 1) % reduction_setting["deg_1"]["frequency"] == 0), 
                   deg_1),
-        "deg_2": (lambda: RED_MATRIX[reduction_grouping]["deg_2"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["deg_2"] == 0
-                  , deg_2),
-        "high_deg": (lambda: RED_MATRIX[reduction_grouping]["high_deg"] and k < g.max_deg and not preprocessing,
+        "deg_2": (lambda rs: preprocessing or ( reduction_setting["deg_2"]["is_on"] and (rs + 1) % reduction_setting["deg_2"]["frequency"] == 0), deg_2),
+        "high_deg": (lambda rs: reduction_setting["high_deg"]["is_on"] and k < g.max_deg and not preprocessing,
                     high_degree),
-        "buss": (lambda: RED_MATRIX[reduction_grouping]["buss"] and not preprocessing,
+        "buss": (lambda rs: reduction_setting["buss"]["is_on"] and k < g.max_deg and not preprocessing,
                 buss_rule),
-        "dom": (lambda: RED_MATRIX[reduction_grouping]["dom"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["dom"] == 0,
+        "dom": (lambda rs: preprocessing or ( reduction_setting["dom"]["is_on"] and (rs + 1) % reduction_setting["dom"]["frequency"] == 0),
                 domination_rule),
-        "crown": (lambda: RED_MATRIX[reduction_grouping]["crown"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["crown"] == 0,
+        "crown": (lambda rs: preprocessing or ( reduction_setting["crown"]["is_on"] and (rs + 1) % reduction_setting["crown"]["frequency"] == 0),
                    crown_rule),
-        "deg3_ind_set": (lambda: RED_MATRIX[reduction_grouping]["deg3_ind_set"] and (rec_steps + 1) % RED_FREQ[reduction_frequency]["deg3_ind_set"] == 0, deg3_ind_set),
-        "lprule": (lambda: RED_MATRIX[reduction_grouping]["lprule"], simple_lp_rule),
-        "unconfined": (lambda: RED_MATRIX[reduction_grouping]["unconfined"], unconfined_rule),
+        "deg3_ind_set": (lambda rs: preprocessing or (reduction_setting["deg3_ind_set"]["is_on"] and (rs + 1) % reduction_setting["deg3_ind_set"]["frequency"] == 0), deg3_ind_set),
+        "lprule": (lambda rs: preprocessing or reduction_setting["lprule"]["is_on"], simple_lp_rule),
+        "unconfined": (lambda rs: preprocessing or reduction_setting["unconfined"]["is_on"], unconfined_rule),
     }
     while True:
-        if not flag:
-            break
         if g.Packing and g.Packing.packing_is_violated():
             flag = False
             break
+
+        applied_rule = False
         for cond_func, rule_func in rule_dict.values():
-            #g.update_max_deg()
-            if cond_func():
-                flag, vc_re, re, *extras = rule_func(g, k)
-                vc.extend(vc_re)
-                num_revert += re
-                num_merges = 0
-                if len(extras) > 0:
-                    num_merges = extras[0]
-                k -= (len(vc_re) + num_merges)
-                if not flag:
-                    break  # if the flag is false, it indicates that there is no VC of size k and we break the while-loop after the for-loop.
-                if len(vc_re) + num_merges > 0:
-                    break  # if we reduced something, we want to start over with the first rule
-        break
+            if not cond_func(rec_steps):
+                continue
+
+            flag, vc_re, re, *extras = rule_func(g, k)
+            vc.extend(vc_re)
+            num_revert += re
+            num_merges = extras[0] if extras else 0
+            k -= (len(vc_re) + num_merges)
+            if not flag:
+                break  # if the flag is false, it indicates that there is no VC of size k and we break the while-loop after the for-loop.
+            if len(vc_re) + num_merges > 0:
+                applied_rule = True
+                break  # if we reduced something, we want to start over with the first rule
+        
+        if not flag or not applied_rule:
+            break
 
     return flag, vc, num_revert, k

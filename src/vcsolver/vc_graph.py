@@ -11,14 +11,58 @@ from utils import (
 from packing_constraints import Packing
 from clique_cover import CliqueCover
 
+DTYPE = np.intc
+COVERED = 1
+UNCOVERED = 0
+REMOVED = -1
+CONTRACTED = -2
+
+def get_cover_vertices(solution: np.ndarray):
+    return np.nonzero(solution==COVERED)[0]
 
 def generate_deg_bags(degrees, indices):
     max_deg = max(degrees.max(), 3)  # deg_bags at least of size 3 to apply deg3 checks without index error
-    degrees, indices = degrees.astype(np.int32), indices.astype(np.int32)
+    degrees, indices = degrees.astype(DTYPE), indices.astype(DTYPE)
     deg_bags = list([set() for _ in range(max_deg + 1)])
     set_add_for_array(deg_bags, degrees, indices)
     return deg_bags
 
+def resolve_merged_degree_2(merged_vertices, solution: np.ndarray):
+    (v, x, y) = merged_vertices
+    if solution[v]:
+        if np.any(solution[[x, y]]):
+            raise Exception("merging failed for v == COVERED!!!")
+        solution[[x, y]] =  COVERED
+        solution[v] = UNCOVERED
+    else:
+        solution[v] =  COVERED
+        if np.any(solution[[x, y]]):
+            raise Exception("merging failed!!!")
+
+def resolve_merged_degree_3(merged_vertices, solution: np.ndarray):
+    (v, a, b, c) = merged_vertices
+    num_of_abc_in_vc = (solution[[a,b,c]]==COVERED).sum()
+    if num_of_abc_in_vc == 2:
+        solution[v] =  COVERED
+        for x in [a,b,c]:
+            if solution[x] ==  COVERED:
+                solution[x] = UNCOVERED
+                break
+    if num_of_abc_in_vc == 1:
+        solution[v] =  COVERED
+        for x in [a,b,c]:
+            if solution[x] ==  COVERED:
+                solution[x] = UNCOVERED
+                break
+    # if num_of_abc_in_vc == 3: do nothing
+
+def resolve_merged_vertices(merge_stack: list, solution: np.ndarray):
+    while len(merge_stack) > 0:
+        merged_v = merge_stack.pop()
+        if len(merged_v) == 3:
+            resolve_merged_degree_2(merged_v, solution)
+        if len(merged_v) == 4:
+            resolve_merged_degree_3(merged_v, solution)
 
 class VCGraph:
     """
@@ -38,12 +82,12 @@ class VCGraph:
         self.adj_list = adj_list
         self.init_num_vertices = len(adj_list)  # is the actual number of vertices at init time for subgraphs
         if vc_solution is None:
-            vc_solution = np.zeros(self.init_num_vertices, dtype=bool)
+            vc_solution = np.zeros(self.init_num_vertices, dtype=DTYPE)
         self.vc_solution = vc_solution  # (-1 unknown, 1 solution, 0 removed) array indicating which vertex is part of the finished solution
         if degrees is None:
-            degrees = np.array(list(map(len, adj_list)), dtype="int32")
+            degrees = np.array(list(map(len, adj_list)), dtype=DTYPE)
         if deg_bags is None:
-            deg_bags = generate_deg_bags(degrees, np.arange(len(degrees), dtype="int32"))
+            deg_bags = generate_deg_bags(degrees, np.arange(len(degrees), dtype=DTYPE))
         self.degrees = degrees
         self.num_edges = sum(degrees) // 2
         self.deg_bags = deg_bags
@@ -52,9 +96,8 @@ class VCGraph:
             list()
         )  # deg_2 rule push((u,v,w)) -> merge_deg2(u,v,w)-> u' return revert_merge  --v--u--w--x--y-- last in first out
         self.revert_stack = list()
-        self.recently_updated_vertices = (
-            set.union(*deg_bags[3:]) if len(deg_bags) > 3 else set()
-        )  # for domination_rule only deg(v)>=3 needed
+        self.recently_updated_vertices = set.union(*deg_bags[3:]) if len(deg_bags) > 3 else set()
+        # for domination_rule only deg(v)>=3 needed
         self.num_hits_by_reduction_rule = {
             "dom": 0,
             "high_deg": 0,
@@ -195,8 +238,8 @@ class VCGraph:
         extra_deg_bags = [set() for _ in range(num_missing_deg_bags)]
         self.deg_bags.extend(extra_deg_bags)
 
-    def update_solution(self, vertices, flag: int):
-        self.vc_solution[vertices] = flag
+    def update_solution(self, vertices, flags: int):
+        self.vc_solution[vertices] = flags
 
     # Returns the current number of vertices of this graph
     # (This number might not be the same as the initial number due to things like
@@ -275,8 +318,8 @@ class VCGraph:
         self.revert_stack.append(lambda: add_edges_for_array(self.adj_list, vertices, old_edges))
         self.update_degrees(to_update_deg)
 
-        self.update_solution(vertices, True)
-        self.revert_stack.append(lambda: self.update_solution(vertices, False))
+        self.update_solution(vertices, COVERED)
+        self.revert_stack.append(lambda: self.update_solution(vertices, UNCOVERED))
 
         if self.CliqueCover:
             self.CliqueCover.record_vertices(vertices, to_update_deg)
@@ -309,7 +352,7 @@ class VCGraph:
             self.recently_updated_vertices.update(
                 neighbors
             )  # use the set of neighbors for update list -> set expensive, set -> list not so much!
-            self.update_solution(v, True)
+            self.update_solution(v, COVERED)
             if self.CliqueCover:
                 self.CliqueCover.record_vertices([v], neighbors_list)
         self.num_edges -= len(neighbors)
@@ -327,7 +370,7 @@ class VCGraph:
         if update:
             self.update_degrees(list(neighbors))
             self.update_to_zero_degree(v)
-            self.update_solution(v, False)
+            self.update_solution(v, UNCOVERED)
 
         self.num_edges += len(neighbors)
 

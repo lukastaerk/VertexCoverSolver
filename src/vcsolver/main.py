@@ -21,10 +21,6 @@ def parse_arguments():
     parser.add_argument(
         "--local_search", "-ls", action="store_true", help="Enable or disable local search (default: disabled)"
     )
-    parser.add_argument("--reduction_grouping", "-rg", type=int, default=2, help="Set reduction grouping (default: 2)")
-    parser.add_argument(
-        "--reduction_frequency", "-rf", type=int, default=0, help="Set reduction frequency (default: 0)"
-    )
     parser.add_argument(
         "--print_lower_bound",
         "-lb",
@@ -42,8 +38,8 @@ def main():
     args_dict = vars(args)
     newslimit = 65536000
     slimit, hlimit = resource.getrlimit(resource.RLIMIT_STACK)
-    if args_dict["ignore_limit"] and slimit < newslimit:
-        raise Exception("stack limit is too small, run ulimit -Ss 64000")
+    if not args_dict["ignore_limit"] and slimit < newslimit:
+        raise Exception("Stack limit is too small, run ulimit -Ss 64000 or use --ignore_limit flag")
     sys.setrecursionlimit(10**6)  # careful segfault
 
     adjacency_list, edges = read_graph_fast()  # read from stdin

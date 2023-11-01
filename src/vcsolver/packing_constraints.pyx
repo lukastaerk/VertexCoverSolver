@@ -2,10 +2,10 @@
 import numpy as np
 cimport numpy as np
 import cython
-
-DTYPE = int 
-
-ctypedef np.int_t DTYPE_t
+ 
+# type declarations
+DTYPE = np.int_
+ctypedef int DTYPE_t
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -57,14 +57,14 @@ cdef class Packing:
         cdef list candy = list()
         if u in self.satellites:
             for s in self.satellites[u]:
-                if not self.vc_solution[s]: 
+                if self.vc_solution[s]==0: 
                     if w == -1:
                         w = s
                     else: candy.append(s)
             if len(candy)>0: print(candy)
         else:
             not_in_cover = np.where(self.vc_solution[self.adj[u]]==False)[0]
-            if len(not_in_cover)!=1:
+            if not_in_cover.size!=1:
                 w = 0
                 print("# Error in packing reduction", not_in_cover)
             else: 

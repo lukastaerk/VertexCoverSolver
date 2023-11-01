@@ -1,36 +1,38 @@
 # cython: language_level=3
-
 import numpy as np
-
+ 
 cimport numpy as np
 import cython
 
-DTYPE = int
-ctypedef np.int_t DTYPE_t
+# type declarations
+DTYPE = np.intc
+ctypedef int DTYPE_t
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef class CliqueCover:
-    cdef np.ndarray clique
-    cdef np.ndarray clique_size
-    cdef np.ndarray tmp_size
+    cdef DTYPE_t[::1] clique
+    cdef DTYPE_t[::1] clique_size
+    cdef DTYPE_t[::1] tmp_size
     cdef list adj_list
-    cdef np.ndarray vc_solution
+    cdef DTYPE_t[::1] vc_solution
     cdef int c_lb
     cdef list new_in_cover
     cdef set new_update_verices
     cdef list revert_stack
+    cdef int N
 
-    def __cinit__(self, int V, list adj_list, np.ndarray vc_solution):
-        self.clique = np.arange(V, dtype=DTYPE) # everyone is its own clique
-        self.clique_size = np.ones(V, dtype=DTYPE) 
-        self.tmp_size = np.zeros(V, dtype=DTYPE)
+    def __cinit__(self, int N, list adj_list, DTYPE_t[::1] vc_solution):
+        self.clique = np.arange(N, dtype=DTYPE) # everyone is its own clique
+        self.clique_size = np.ones(N, dtype=DTYPE) 
+        self.tmp_size = np.zeros(N, dtype=DTYPE)
         self.adj_list = adj_list
         self.vc_solution = vc_solution
         self.c_lb = -1
         self.new_in_cover = list()
         self.new_update_verices = set()
         self.revert_stack = list()
+        self.N
 
     cpdef int get_c_lb(self):
         return self.c_lb
@@ -120,8 +122,12 @@ cdef class CliqueCover:
         return changes
 
     def clique_lb(self, int init, list deg_bags):
+        cdef int i
         if init==1:
-            self.clique[:], self.clique_size[:], self.c_lb = np.arange(len(self.clique)), 1, 0
+            for i in range(self.N):
+                self.clique[i] = i
+            self.clique_size[:] = 1
+            self.c_lb = 0
         #if c_lb == -1: # during banching TODO 
         #    for v in self.inspect_for_clique_lb:
         #        c_lb += self.clique_inspect(v)
@@ -137,17 +143,16 @@ cdef class CliqueCover:
         return self.c_lb
 
     cdef (int, int) clique_inspect(self, int v):
-        cdef np.ndarray clique, clique_size, tmp_size
+        cdef DTYPE_t[::1] clique, clique_size, tmp_size
         clique, clique_size, tmp_size = self.clique, self.clique_size, self.tmp_size
         cdef int improvement = 0
         cdef int new_c, crt_size 
         new_c, crt_size = clique[v], clique_size[clique[v]]-1 # remove your self from you own clique to compair to others 
-        #cdef set neighbors = self.adj_list[v]
         cdef list neighbors = list(self.adj_list[v])
-        tmp_size[clique[neighbors]] = 0
+        #tmp_size[clique[neighbors]] = 0
         cdef int u, c, old_c
-        #for u in neighbors:
-        #    tmp_size[clique[u]] = 0
+        for u in neighbors:
+            tmp_size[clique[u]] = 0
         for u in neighbors:
             c = clique[u]
             tmp_size[c] += 1

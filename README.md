@@ -1,55 +1,52 @@
-ALGORITHM ENGINEERING SUMMER TERM 2020  
-SUBMISSION FOR EXERCISE SHEET 5 BY TEAM 1  
-	Johannes Berthold  
-	Christopher Denker  
+A Project started in the Algorithm Engineering Course SUMMER TERM 2020 at TU-Berlin
 	Luka Stärk  
 
-The program consists of the following files:
-* branch_and_bound.py
-* vc_graph.py
-* reduction.py
-* sat_solver.py
-* lower_bound.py
-* hopcroft_karp.py
-* vectorized_func.py
-* read_stdin.py
-* clique_cover.pyx
-* packing_constraints.pyx
-* utils.pyx
+# Vertex Cover vc_solver
 
-1. set the stack size limit to 64MB, install dependencies and compiles Cython files by running the script: `. ./config.sh`
+## Overview
+Vertex Cover vc_solver is a tool for solving vertex cover problems using branch and cut, reductions, and preprocessing techniques. It allows users to enable or disable different approaches, including greedy algorithms, local search, and preprocessing, to optimize the solution process.
+
+## Features
+- **Preprocessing**: Enable or disable preprocessing steps to optimize the problem-solving.
+- **Greedy Algorithm**: Toggle the use of a greedy algorithm for finding vertex covers.
+- **Local Search**: Enable or disable local search methods to refine solutions.
+- **Print Lower Bound**: Option to print the lower bound of the solution.
+- **Ignore Limit**: Ignore certain limitations or constraints during problem-solving.
+
+## Installation
+To use the Vertex Cover vc_solver, clone the repository or download the source code. Ensure you have Python installed on your system.
+
+## Usage
+Set the stack size limit to 64MB, install dependencies and compiles Cython files by running the script: `. ./config.sh`
 (IMPORTANT: execute config inside your bash with exactly `. ./config.sh` and NOT `./config.sh`)
 
-2. install *graph-tool* with a package-manager	
-3. Run the program with:  
-    `python3 branch_and_bound.py pre=1 branching2=1 red_grp=2 greedy=1`
-    
- Dependencies: numpy>=1.18.1, scipy>=1.4.1, graph_tool, python-sat==0.1.5.dev14 and Cython==0.29.20.
+Run the program from the command line using the following syntax:
 
-The data format for the undirected graph is as specified by the text of exercise sheet 1.
-Input is read from standard input and output is written to standard output.
+```bash
+python main.py < input_file > output_file [options]
+```
 
-* **branching1** in [0,1], default: 0
-    - Splits graph into connected components and solves each for fixed k start with a lower bound until k equals the solution size. 
+### Options
+- `-h`, `--help`: Show the help message and exit.
+- `-p`, `--preprocessing`: Enable or disable preprocessing (default: disabled).
+- `-g`, `--greedy`: Enable or disable the greedy algorithm (default: disabled).
+- `-ls`, `--local_search`: Enable or disable local search (default: disabled).
+- `-lb`, `--print_lower_bound`: Enable or disable printing of lower bound (default: disabled).
+- `-il`, `--ignore_limit`: Ignore limit flag (default: disabled).
 
-* **branching2** in [0,1], default: 0
-    - Constrained branching with upper bound, two packing constraints and clique cover lower bound updates to cut branches. 
+## Reduction Rules
+The program also allows for fine-tuning of reduction rules. Each rule can be enabled or disabled, and its frequency of application can be set. The default settings for the rules are as follows:
 
-* **greedy** in [0,1], default: 1
-  - Apply greedy algorithm. Returns a vertex cover that is not minimal.
+- **deg_1**: Enabled, Frequency: 1
+- **deg_2**: Enabled, Frequency: 1
+- **high_deg**: Enabled, Frequency: 1
+- **buss**: Enabled, Frequency: 1
+- **dom**: Enabled, Frequency: 1
+- **crown**: Disabled, Frequency: 1
+- **lprule**: Disabled, Frequency: 1
+- **unconfined**: Disabled, Frequency: 1
+- **deg3_ind_set**: Disabled, Frequency: 1
 
-* **local_search** in [0,1], default: 1
-  - Apply local search on result(s) of greedy algorithm.
+## Customization
+You can customize the reduction rules and their frequencies by modifying the relevant section in the code.
 
-* **pre** in [0,1], default: 1
-  - Apply preprocessing according to setting of red_grp (reduction group).
-
-* **sat** in [0,1], default: 0
-  - Use SAT solver to obtain minimum vertex cover using 'glucose3'.
-
-* **red_grp** in [0,8], default: 2
-  - Apply a combination of reduction rules according to index. See `reduction.py`
-
-* **red_frq** in [0,3], default: 0
-  - Apply reduction rules (compare red_grp) with varying frequencies according to index. See `reduction.py`.
-    

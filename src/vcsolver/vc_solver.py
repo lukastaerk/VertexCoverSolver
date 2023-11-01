@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 from lower_bound import get_lowerbound_lp
-from vc_graph import VCGraph
+from vc_graph import COVERED, DTYPE, VCGraph, get_cover_vertices, resolve_merged_vertices
 from collections import Counter
 import reduction
 import time
@@ -48,8 +48,8 @@ class VCSolver:
         self.time_limit = time_limit if time_limit else time.time() + 50
         # greedy init
         self.upperbound = num_vertices
-        self.pre_solution = np.zeros(num_vertices, dtype=bool)
-        self.best_solution = np.zeros(num_vertices, dtype=bool)
+        self.pre_solution = np.zeros(num_vertices, dtype=DTYPE)
+        self.best_solution = np.zeros(num_vertices, dtype=DTYPE)
         self.best_solution_merge_stack = None
         print(
             "# init: reduction_grouping: %d, reduction_frequency: %d, print_lower_bound: %d, preprocessing: %d, greedy: %d, local_search: %d"
@@ -67,12 +67,14 @@ class VCSolver:
         if self.print_lower_bound:
             self.print_all_lowerbounds(g)
         if self.preprocessing:
+            print("# preprocessing")
             vc_solved = self.run_preprocessing(g)
             self.reduction_hit_counter.update(g.num_hits_by_reduction_rule)
             if vc_solved:
-                self.resolve_merged_vertices(g.merge_stack, g.vc_solution)
-                return np.nonzero(g.vc_solution)[0]
+                resolve_merged_vertices(g.merge_stack, g.vc_solution)
+                return get_cover_vertices(g.vc_solution)
         if self.greedy:
+            print("# greedy")
             self.compute_upperbound(g)
             print("# upperbound: ", self.upperbound)
 
@@ -81,20 +83,20 @@ class VCSolver:
         g.set_packing_constraint()
         g.set_click_cover()
         g.set_max_deg(g.degrees.max())
+        print("# run constrained branching")
         ub = self.constrained_branching(g, 0, self.upperbound)
         g.merge_stack = self.best_solution_merge_stack
         self.reduction_hit_counter.update(g.num_hits_by_reduction_rule)
         # return solution
-        self.resolve_merged_vertices(g.merge_stack, self.best_solution)
-        return np.nonzero(self.best_solution)[0]
+        resolve_merged_vertices(g.merge_stack, self.best_solution)
+        return get_cover_vertices(self.best_solution)
 
     def run_preprocessing(self, g: VCGraph) -> bool:
         all_red_rules_activated = self.reduction_grouping  # NOTE this was equal 4 in the solver3
         flag, vc_reduction, _, _ = reduction.perform_reduction(
             g,
             float("inf"),
-            all_red_rules_activated,
-            self.reduction_frequency,
+            rec_steps=0,
             preprocessing=True,
         )
         self.pre_solution[:] = g.vc_solution.copy()
@@ -136,7 +138,7 @@ class VCSolver:
                 min_vc = vc_size
             last_run_time = time.time() - start_time
 
-        self.upperbound = np.count_nonzero(self.best_solution)
+        self.upperbound = get_cover_vertices(self.best_solution).size
 
     def greedy_heuristic(self, g: VCGraph, vc_size: int = 0, rnd_vertex=False) -> np.ndarray:
 
@@ -159,12 +161,11 @@ class VCSolver:
                 # (i.e. remove it from the adjacency lists of all neighbors of neigh
                 # and update degrees)
                 neighbors = g.adj_list[neigh]
-                # TODO Dude this code is ugly.. why no loop?
                 list(map(lambda n: g.adj_list[n].remove(neigh), neighbors))
                 list(map(g.degrees_decrement, neighbors))
                 neighbors.clear()
                 g.update_to_zero_degree(neigh)
-                g.vc_solution[neigh] = True
+                g.update_solution(neigh,COVERED)
                 vc_size += 1
 
             # We changed the graph (if there were degree 1 vertices), so we update
@@ -180,8 +181,6 @@ class VCSolver:
             # The flag rnd_vertex allows for variation in the solution and may
             # (sometimes) lead to better results.
             if rnd_vertex:
-                # success, vc_reduction, revert_reduction_array, k_update = reduction.perform_reduction(g, float("inf"), max_deg, reduction_grouping=self.reduction_grouping, preprocessing=True)
-                # vc_size += k - k_update
                 v = self.get_random_vertex(g)
                 g.deg_bags[g.max_deg].remove(v)
             else:
@@ -194,7 +193,7 @@ class VCSolver:
             list(map(lambda n: g.adj_list[n].remove(v), neighbors_v))
             list(map(g.degrees_decrement, neighbors_v))
             g.adj_list[v].clear()
-            g.vc_solution[v] = True
+            g.update_solution(v,COVERED)
             vc_size += 1
 
         return vc_size
@@ -205,9 +204,7 @@ class VCSolver:
             g.CliqueCover.reset_records()
             return ub
 
-        (success, vc_reduction, num_revert_red, k_update) = reduction.perform_reduction(
-            g, k, reduction_grouping=self.reduction_grouping, preprocessing=True
-        )
+        (success, vc_reduction, num_revert_red, k_update) = reduction.perform_reduction(g, k, rec_steps=self.recursive_steps)
         vc_size += k - k_update
         if not success or g.Packing.packing_is_violated():
             g.CliqueCover.reset_records()
@@ -281,46 +278,6 @@ class VCSolver:
         g.set_click_cover()
         lb = g.CliqueCover.clique_lb(1, g.deg_bags)
         return max(lb_lp, lb)
-
-    def resolve_merged_degree_2(self, merged_vertices, solution: np.ndarray):
-        (v, x, y) = merged_vertices
-        if solution[v]:
-            if np.any(solution[[x, y]]):
-                raise Exception("merging failed for v == True!!!")
-            solution[[x, y]] = True
-            solution[v] = False
-        else:
-            solution[v] = True
-            if np.any(solution[[x, y]]):
-                raise Exception("merging failed!!!")
-
-    def resolve_merged_degree_3(self, merged_vertices, solution: np.ndarray):
-        (v, a, b, c) = merged_vertices
-        num_of_abc_in_vc = int(solution[a] & solution[b] & solution[c])
-        if num_of_abc_in_vc == 2:
-            solution[v] = True
-            if solution[a] & solution[b] == True:
-                solution[a] = False
-            if solution[b] & solution[c] == True:
-                solution[b] = False
-            if solution[c] & solution[a] == True:
-                solution[c] = False
-        if num_of_abc_in_vc == 1:
-            solution[v] = True
-            if solution[a] == True:
-                solution[a] = False
-            if solution[a] == True:
-                solution[a] = False
-            if solution[a] == True:
-                solution[a] = False
-
-    def resolve_merged_vertices(self, merge_stack: list, solution: np.ndarray):
-        while len(merge_stack) > 0:
-            merged_v = merge_stack.pop()
-            if len(merged_v) == 3:
-                self.resolve_merged_degree_2(merged_v, solution)
-            if len(merged_v) == 4:
-                self.resolve_merged_degree_3(merged_v, solution)
 
     def receive_signal_last_k(self, signum, frame):
         print("#last-k: %s" % (self.last_k))
