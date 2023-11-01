@@ -28,7 +28,7 @@ def parse_arguments():
         help="Enable or disable printing of lower bound (default: disabled)",
     )
     parser.add_argument("--ignore_limit", "-il", action="store_true", help="Ignore limit flag (default: disabled)")
-
+    parser.add_argument("--print_kernel", "-pk", action="store_true", help="Print kernel after preprocessing (default: disabled)")
     return parser.parse_args()
 
 

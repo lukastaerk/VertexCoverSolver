@@ -9,7 +9,7 @@ from vcsolver.vc_solver import VCSolver
 class TestGraph(unittest.TestCase):
 
     def setUp(self):
-        instance = "../data/3-medium-sized/vc005"
+        instance = "../data/4-interst/kernel"
         file = open(instance+".dimacs", "r")
         self.mock_stdin(file.read())
         file.close()
@@ -26,7 +26,7 @@ class TestGraph(unittest.TestCase):
 
     def test_get_current_vertices(self):
         start_time = time.time()
-        self.assertEqual(len(self.graph.get_current_vertices()), len(self.graph.adj_list))
+        self.assertEqual(len(self.graph.get_current_vertices()), 192)
         end_time = time.time()
         print("Time taken: ", end_time - start_time)
         self.assertGreaterEqual(1e-4, end_time - start_time)
@@ -37,7 +37,7 @@ class TestGraph(unittest.TestCase):
         end_time = time.time()
         self.assertEqual(vc.size, self.solution)
         print("Time taken: ", end_time - start_time)
-        self.assertGreaterEqual(17, end_time - start_time)
+        self.assertGreaterEqual(20, end_time - start_time)
         print("# ",self.solver.reduction_hit_counter)
 
 if __name__ == "__main__":

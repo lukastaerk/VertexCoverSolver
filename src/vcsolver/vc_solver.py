@@ -51,6 +51,7 @@ class VCSolver:
         self.pre_solution = np.zeros(num_vertices, dtype=DTYPE)
         self.best_solution = np.zeros(num_vertices, dtype=DTYPE)
         self.best_solution_merge_stack = None
+        self.print_kernel = kwargs.get("print_kernel", False)
         print(
             "# init: reduction_grouping: %d, reduction_frequency: %d, print_lower_bound: %d, preprocessing: %d, greedy: %d, local_search: %d"
             % (
@@ -103,6 +104,13 @@ class VCSolver:
 
         if len(g.deg_bags[0]) == len(g.adj_list):  # all vertices v deg(v) == 0 [vc] is solved
             return True
+        
+        if self.print_kernel: 
+            with open("kernel.dimacs", "w") as f:
+                f.write(f"#{len(g.adj_list)} {g.num_edges}\n")
+                edges = [(u,v) for u in range(len(g.adj_list)) for v in g.adj_list[u] if u < v]
+                for u,v in edges:
+                    f.write(f"{u+1} {v+1}\n")
         return False
 
     def get_random_vertex(self, g: VCGraph):
