@@ -6,13 +6,6 @@ A Project started in the Algorithm Engineering Course SUMMER TERM 2020 at TU-Ber
 ## Overview
 Vertex Cover vc_solver is a tool for solving vertex cover problems using branch and cut, reductions, and preprocessing techniques. It allows users to enable or disable different approaches, including greedy algorithms, local search, and preprocessing, to optimize the solution process.
 
-## Features
-- **Preprocessing**: Enable or disable preprocessing steps to optimize the problem-solving.
-- **Greedy Algorithm**: Toggle the use of a greedy algorithm for finding vertex covers.
-- **Local Search**: Enable or disable local search methods to refine solutions.
-- **Print Lower Bound**: Option to print the lower bound of the solution.
-- **Ignore Limit**: Ignore certain limitations or constraints during problem-solving.
-
 ## Installation
 To use the Vertex Cover vc_solver, clone the repository or download the source code. Ensure you have Python installed on your system.
 
