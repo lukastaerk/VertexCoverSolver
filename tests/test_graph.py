@@ -5,21 +5,28 @@ import time
 from vcsolver.read_stdin import read_graph_fast
 from vcsolver.vc_graph import VCGraph
 from vcsolver.vc_solver import VCSolver
+from vcsolver.verifier import verifier
 
 class TestGraph(unittest.TestCase):
 
-    def setUp(self):
+    def __init__(self, *args, **kwargs):
+        super(TestGraph, self).__init__(*args, **kwargs)
+        self.start_time = time.time()
         instance = "../data/4-interst/kernel"
+        self.adjacency, self.edges, self.solution = self.read_graph(instance)
+        self.graph = VCGraph(self.adjacency)
+        self.solver = VCSolver(len(self.adjacency), time_limit=50 + self.start_time, print_lower_bound=True, reduction_mode=1)
+
+    def read_graph(self, instance):
         file = open(instance+".dimacs", "r")
         self.mock_stdin(file.read())
         file.close()
         file_sol = open(instance+".solution", "r")
-        self.solution = int(file_sol.readline().strip())
+        solution = int(file_sol.readline().strip())
         file_sol.close()
-        adjacency, edges = read_graph_fast()
-        self.start_time = time.time()
-        self.graph = VCGraph(adjacency)
-        self.solver = VCSolver(len(adjacency), time_limit=50 + self.start_time, print_lower_bound=True)
+        adj, edges = read_graph_fast()
+        return adj, edges, solution
+        
 
     def mock_stdin(self, mock_input):
         sys.stdin = io.StringIO(mock_input)
@@ -38,7 +45,19 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(vc.size, self.solution)
         print("Time taken: ", end_time - start_time)
         self.assertGreaterEqual(20, end_time - start_time)
-        print("# ",self.solver.reduction_hit_counter)
+        self.assertTrue(verifier(vc, self.edges))
+
+    def test_deg3(self):
+        instance = "../data/3-medium-sized/vc019"
+        adjacency, edges, solution = self.read_graph(instance)
+        graph = VCGraph(adjacency)
+        solver = VCSolver(len(adjacency), time_limit=50 + self.start_time, reduction_mode=1)
+        vc = solver.run(graph)
+        self.assertTrue(verifier(vc, edges))
+        self.assertEqual(vc.size, solution)
+        
+
+
 
 if __name__ == "__main__":
     unittest.main()

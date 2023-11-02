@@ -18,7 +18,7 @@ class VCSolver:
         preprocessing=False,
         greedy=False,
         local_search=False,
-        reduction_grouping=2,
+        reduction_mode=2,
         reduction_frequency=0,
         print_lower_bound=False,
         **kwargs,
@@ -29,19 +29,18 @@ class VCSolver:
         self.last_k = 0
         self.greedy = greedy
         (
-            self.reduction_grouping,
+            self.reduction_mode,
             self.reduction_frequency,
             self.print_lower_bound,
             self.preprocessing,
             self.local_search,
         ) = (
-            reduction_grouping,
+            reduction_mode,
             reduction_frequency,
             print_lower_bound,
             preprocessing,
             local_search,
         )
-        self.reduction_hit_counter = Counter()
         self.branching_count = 0
         self.random_candidates = list()
         self.last_max_deg = -1
@@ -53,9 +52,9 @@ class VCSolver:
         self.best_solution_merge_stack = None
         self.print_kernel = kwargs.get("print_kernel", False)
         print(
-            "# init: reduction_grouping: %d, reduction_frequency: %d, print_lower_bound: %d, preprocessing: %d, greedy: %d, local_search: %d"
+            "# init: reduction_mode: %d, reduction_frequency: %d, print_lower_bound: %d, preprocessing: %d, greedy: %d, local_search: %d"
             % (
-                reduction_grouping,
+                reduction_mode,
                 reduction_frequency,
                 print_lower_bound,
                 preprocessing,
@@ -70,7 +69,6 @@ class VCSolver:
         if self.preprocessing:
             print("# preprocessing")
             vc_solved = self.run_preprocessing(g)
-            self.reduction_hit_counter.update(g.num_hits_by_reduction_rule)
             if vc_solved:
                 resolve_merged_vertices(g.merge_stack, g.vc_solution)
                 return get_cover_vertices(g.vc_solution)
@@ -87,18 +85,16 @@ class VCSolver:
         print("# run constrained branching")
         ub = self.constrained_branching(g, 0, self.upperbound)
         g.merge_stack = self.best_solution_merge_stack
-        self.reduction_hit_counter.update(g.num_hits_by_reduction_rule)
         # return solution
         resolve_merged_vertices(g.merge_stack, self.best_solution)
         return get_cover_vertices(self.best_solution)
 
     def run_preprocessing(self, g: VCGraph) -> bool:
-        all_red_rules_activated = self.reduction_grouping  # NOTE this was equal 4 in the solver3
         flag, vc_reduction, _, _ = reduction.perform_reduction(
             g,
             float("inf"),
             rec_steps=0,
-            preprocessing=True,
+            reduction_mode=2,
         )
         self.pre_solution[:] = g.vc_solution.copy()
 
@@ -212,7 +208,7 @@ class VCSolver:
             g.CliqueCover.reset_records()
             return ub
 
-        (success, vc_reduction, num_revert_red, k_update) = reduction.perform_reduction(g, k, rec_steps=self.recursive_steps)
+        (success, vc_reduction, num_revert_red, k_update) = reduction.perform_reduction(g, k, rec_steps=self.recursive_steps, reduction_mode=self.reduction_mode)
         vc_size += k - k_update
         if not success or g.Packing.packing_is_violated():
             g.CliqueCover.reset_records()
@@ -287,8 +283,3 @@ class VCSolver:
         lb = g.CliqueCover.clique_lb(1, g.deg_bags)
         return max(lb_lp, lb)
 
-    def receive_signal_last_k(self, signum, frame):
-        print("#last-k: %s" % (self.last_k))
-        print("#recursive steps: %s" % self.recursive_steps)
-        print("#", self.reduction_hit_counter)
-        sys.exit()

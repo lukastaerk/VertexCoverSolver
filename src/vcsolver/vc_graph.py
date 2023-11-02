@@ -42,16 +42,22 @@ def resolve_merged_degree_2(merged_vertices, solution: np.ndarray):
 def resolve_merged_degree_3(merged_vertices, solution: np.ndarray):
     (v, a, b, c) = merged_vertices
     num_of_abc_in_vc = (solution[[a,b,c]]==COVERED).sum()
+    if num_of_abc_in_vc == 0 or solution[v] == COVERED:
+        raise Exception("merging failed!!!")
     if num_of_abc_in_vc == 2:
-        solution[v] =  COVERED
-        for x in [a,b,c]:
-            if solution[x] ==  COVERED:
-                solution[x] = UNCOVERED
+        solution[v] = COVERED
+        for i in range(0,3):
+            x = merged_vertices[i+1]
+            if solution[x] == UNCOVERED:
+                xx = merged_vertices[((i+1)%3) + 1]
+                if solution[xx] == UNCOVERED:
+                    raise Exception("merging failed!!!")
+                solution[xx] = UNCOVERED # set the next one to UNCOVERED if a than b, if b than c, if c than a
                 break
     if num_of_abc_in_vc == 1:
-        solution[v] =  COVERED
+        solution[v] = COVERED
         for x in [a,b,c]:
-            if solution[x] ==  COVERED:
+            if solution[x] == COVERED:
                 solution[x] = UNCOVERED
                 break
     # if num_of_abc_in_vc == 3: do nothing
@@ -98,12 +104,11 @@ class VCGraph:
         self.revert_stack = list()
         self.recently_updated_vertices = set.union(*deg_bags[3:]) if len(deg_bags) > 3 else set()
         # for domination_rule only deg(v)>=3 needed
-        self.num_hits_by_reduction_rule = {
+        self.reduction_hit_counter = {
             "dom": 0,
             "high_deg": 0,
             "deg_1": 0,
             "deg_2": 0,
-            "crown": 0,
             "packing": 0,
             "lprule": 0,
             "unconfined": 0,
@@ -185,7 +190,7 @@ class VCGraph:
     def merge_deg3(self, v: int) -> "int, int":
         last_len_rs = len(self.revert_stack)
         neighbors_v = self.get_neighbors(v)
-        a, b, c = [i for i in neighbors_v]
+        a, b, c = neighbors_v
         # we have to add edges for e.g. a to N(b). Because N(v) could overlap with N(a) we remove N(a). This way no edges are added  that are already there.
         # This could be an issue when we remove the edges during reverting the changes. E.g. a edge could be removed even though it was there before.
         neighbors_a_without_neighbors_c = self.get_neighbors(a) - self.get_neighbors(c)
@@ -207,26 +212,17 @@ class VCGraph:
         self.revert_stack.append(lambda: self.update_degrees(all_vertices_to_be_updated))
         # apply changes according to deg3 indep set rule
         self.revert_stack.append(self.remove_edges(v, {a, b, c}, update=False))
-        self.revert_stack.append(self.add_edges(a, set({b}), update=False))
-        self.revert_stack.append(self.add_edges(b, set({c}), update=False))
+        self.revert_stack.append(self.add_edges(a, {b}, update=False))
+        self.revert_stack.append(self.add_edges(b, {c}, update=False))
         self.revert_stack.append(self.add_edges(a, neighbors_b_without_neighbors_a, update=False))
         self.revert_stack.append(self.add_edges(b, neighbors_c_without_neighbors_b, update=False))
         self.revert_stack.append(self.add_edges(c, neighbors_a_without_neighbors_c, update=False))
         # degree of a, b or c could be higher than size of deg_bags -> resize if necessary
-        all_vertices_without_v = set.union(
-            {a, b, c},
-            neighbors_b_without_neighbors_a,
-            neighbors_c_without_neighbors_b,
-            neighbors_a_without_neighbors_c,
-        )
-        all_vertices_to_be_updated = list(all_vertices_without_v)
-
         degrees = [len(self.adj_list[i]) for i in all_vertices_to_be_updated]
         local_max_degree = max(degrees)
         num_missing_deg_bags = local_max_degree - len(self.deg_bags) + 1
         self.resize_deg_bags(num_missing_deg_bags)
         # update degrees of all vertices involved in the merge
-        all_vertices_to_be_updated.append(v)
 
         self.update_degrees(all_vertices_to_be_updated)
         if self.CliqueCover:
@@ -238,8 +234,8 @@ class VCGraph:
         extra_deg_bags = [set() for _ in range(num_missing_deg_bags)]
         self.deg_bags.extend(extra_deg_bags)
 
-    def update_solution(self, vertices, flags: int):
-        self.vc_solution[vertices] = flags
+    def update_solution(self, vertices, flag: int):
+        self.vc_solution[vertices] = flag
 
     # Returns the current number of vertices of this graph
     # (This number might not be the same as the initial number due to things like
