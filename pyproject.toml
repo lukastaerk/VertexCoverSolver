@@ -3,7 +3,7 @@ name = "vcsolver"
 version = "0.1.0"
 description = "A Vertex Cover Solver Branch and Reduce"
 [tool.black]
-line-length = 120
+line-length = 127
 target-version = ['py39']
 include = '\.pyi?$'
 exclude = '''

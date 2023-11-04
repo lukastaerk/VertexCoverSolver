@@ -12,10 +12,10 @@ class TestGraph(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestGraph, self).__init__(*args, **kwargs)
         self.start_time = time.time()
-        instance = "../data/4-interst/kernel"
+        instance = "tests/data/kernel"
         self.adjacency, self.edges, self.solution = self.read_graph(instance)
         self.graph = VCGraph(self.adjacency)
-        self.solver = VCSolver(len(self.adjacency), time_limit=50 + self.start_time, print_lower_bound=True, reduction_mode=1)
+        self.solver = VCSolver(len(self.adjacency), time_limit=50 + self.start_time, print_lower_bound=True, reduction_mode=1, preprocessing_mode=1)
 
     def read_graph(self, instance):
         file = open(instance+".dimacs", "r")
@@ -48,7 +48,7 @@ class TestGraph(unittest.TestCase):
         self.assertTrue(verifier(vc, self.edges))
 
     def test_deg3(self):
-        instance = "../data/3-medium-sized/vc019"
+        instance = "tests/data/vc019"
         adjacency, edges, solution = self.read_graph(instance)
         graph = VCGraph(adjacency)
         solver = VCSolver(len(adjacency), time_limit=50 + self.start_time, reduction_mode=1)
