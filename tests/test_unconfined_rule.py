@@ -2,8 +2,8 @@ import unittest
 from vcsolver.reduction import is_unconfined
 from vcsolver.vc_graph import VCGraph
 
-class TestUnconfinedRule(unittest.TestCase):
 
+class TestUnconfinedRule(unittest.TestCase):
     def test_case_1(self):
         adj_list = [{1, 2, 3}, {0, 2}, {0, 1}, {0}]
         g = VCGraph(adj_list)
@@ -41,5 +41,6 @@ class TestUnconfinedRule(unittest.TestCase):
         self.assertTrue(is_unconfined(g, 3))
         self.assertTrue(is_unconfined(g, 4))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

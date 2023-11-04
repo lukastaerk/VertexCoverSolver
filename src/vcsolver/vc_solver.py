@@ -1,8 +1,6 @@
 import numpy as np
-import sys
 from lower_bound import get_lowerbound_lp
 from vc_graph import COVERED, DTYPE, VCGraph, get_cover_vertices, resolve_merged_vertices
-from collections import Counter
 import reduction
 import time
 import random
@@ -28,13 +26,7 @@ class VCSolver:
         self.recursive_steps = recursive_steps  # to get this information in the results
         self.last_k = 0
         self.greedy = greedy
-        (
-            self.reduction_mode,
-            self.reduction_frequency,
-            self.print_lower_bound,
-            self.preprocessing,
-            self.local_search,
-        ) = (
+        (self.reduction_mode, self.reduction_frequency, self.print_lower_bound, self.preprocessing, self.local_search,) = (
             reduction_mode,
             reduction_frequency,
             print_lower_bound,
@@ -46,7 +38,7 @@ class VCSolver:
         self.last_max_deg = -1
         self.time_limit = time_limit if time_limit else time.time() + 50
         # greedy init
-        self.upperbound = num_vertices
+        self.upper_bound = num_vertices
         self.pre_solution = np.zeros(num_vertices, dtype=DTYPE)
         self.best_solution = np.zeros(num_vertices, dtype=DTYPE)
         self.best_solution_merge_stack = None
@@ -74,8 +66,8 @@ class VCSolver:
                 return get_cover_vertices(g.vc_solution)
         if self.greedy:
             print("# greedy")
-            self.compute_upperbound(g)
-            print("# upperbound: ", self.upperbound)
+            self.compute_upper_bound(g)
+            print("# upper_bound: ", self.upper_bound)
 
         g.vc_solution = self.pre_solution.copy()
         self.best_solution_merge_stack = g.merge_stack
@@ -83,7 +75,7 @@ class VCSolver:
         g.set_click_cover()
         g.set_max_deg(g.degrees.max())
         print("# run constrained branching")
-        ub = self.constrained_branching(g, 0, self.upperbound)
+        _ = self.constrained_branching(g, 0, self.upper_bound)
         g.merge_stack = self.best_solution_merge_stack
         # return solution
         resolve_merged_vertices(g.merge_stack, self.best_solution)
@@ -100,12 +92,12 @@ class VCSolver:
 
         if len(g.deg_bags[0]) == len(g.adj_list):  # all vertices v deg(v) == 0 [vc] is solved
             return True
-        
-        if self.print_kernel: 
+
+        if self.print_kernel:
             with open("kernel.dimacs", "w") as f:
                 f.write(f"#{len(g.adj_list)} {g.num_edges}\n")
-                edges = [(u,v) for u in range(len(g.adj_list)) for v in g.adj_list[u] if u < v]
-                for u,v in edges:
+                edges = [(u, v) for u in range(len(g.adj_list)) for v in g.adj_list[u] if u < v]
+                for u, v in edges:
                     f.write(f"{u+1} {v+1}\n")
         return False
 
@@ -120,7 +112,7 @@ class VCSolver:
             v_deg = g.degrees[v]
         return v
 
-    def compute_upperbound(self, g: VCGraph):
+    def compute_upper_bound(self, g: VCGraph):
         num_runs = min(100, max(int(10**6 / g.num_edges), 1))
         print("# number of random runs: %s" % num_runs)
         min_vc = float("inf")
@@ -142,7 +134,7 @@ class VCSolver:
                 min_vc = vc_size
             last_run_time = time.time() - start_time
 
-        self.upperbound = get_cover_vertices(self.best_solution).size
+        self.upper_bound = get_cover_vertices(self.best_solution).size
 
     def greedy_heuristic(self, g: VCGraph, vc_size: int = 0, rnd_vertex=False) -> np.ndarray:
 
@@ -169,7 +161,7 @@ class VCSolver:
                 list(map(g.degrees_decrement, neighbors))
                 neighbors.clear()
                 g.update_to_zero_degree(neigh)
-                g.update_solution(neigh,COVERED)
+                g.update_solution(neigh, COVERED)
                 vc_size += 1
 
             # We changed the graph (if there were degree 1 vertices), so we update
@@ -197,7 +189,7 @@ class VCSolver:
             list(map(lambda n: g.adj_list[n].remove(v), neighbors_v))
             list(map(g.degrees_decrement, neighbors_v))
             g.adj_list[v].clear()
-            g.update_solution(v,COVERED)
+            g.update_solution(v, COVERED)
             vc_size += 1
 
         return vc_size
@@ -208,7 +200,9 @@ class VCSolver:
             g.CliqueCover.reset_records()
             return ub
 
-        (success, vc_reduction, num_revert_red, k_update) = reduction.perform_reduction(g, k, rec_steps=self.recursive_steps, reduction_mode=self.reduction_mode)
+        (success, vc_reduction, num_revert_red, k_update) = reduction.perform_reduction(
+            g, k, rec_steps=self.recursive_steps, reduction_mode=self.reduction_mode
+        )
         vc_size += k - k_update
         if not success or g.Packing.packing_is_violated():
             g.CliqueCover.reset_records()
@@ -282,4 +276,3 @@ class VCSolver:
         g.set_click_cover()
         lb = g.CliqueCover.clique_lb(1, g.deg_bags)
         return max(lb_lp, lb)
-

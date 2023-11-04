@@ -1,5 +1,6 @@
 from vc_graph import VCGraph
 
+
 def is_unconfined(g: VCGraph, v: int) -> bool:
     S = set([v])
     unclear = True  # we need this loop condition in case we have to do the checks
@@ -118,7 +119,7 @@ def deg_1(g: VCGraph, k: int = float("inf")) -> "bool, list(int), int":
     deg_1_vertices = g.deg_bags[1]
     if not deg_1_vertices:
         return flag, [], num_revert
-    
+
     deg_1_vertices_neighbors = set.union(*map(g.adj_list.__getitem__, deg_1_vertices))
     vc_additions = list(deg_1_vertices_neighbors.difference(deg_1_vertices))  # contains no vertices of degree 1
 
@@ -127,11 +128,11 @@ def deg_1(g: VCGraph, k: int = float("inf")) -> "bool, list(int), int":
     single_edges = deg_1_vertices & deg_1_vertices_neighbors
     lesser_indices = {min(v1, next(iter(g.adj_list[v1]))) for v1 in single_edges}
     vc_additions.extend(lesser_indices)
-    #single_edges = deg_1_vertices.intersection(deg_1_vertices_neighbors)
-    #lesser_indices = set(
+    # single_edges = deg_1_vertices.intersection(deg_1_vertices_neighbors)
+    # lesser_indices = set(
     #    [v1 if v1 < list(g.adj_list[v1])[0] else list(g.adj_list[v1])[0] for v1 in single_edges]
-    #)  # filter edges take lesser index
-    #vc_additions.extend(list(lesser_indices))
+    # )  # filter edges take lesser index
+    # vc_additions.extend(list(lesser_indices))
 
     # saves edge removal effort by doing this check here instead of in perform_reduction
     if len(vc_additions) > k:
@@ -211,6 +212,7 @@ def find_maximal_matching(g: VCGraph) -> "list, set":
 def get_all_neighbors(graph, neighbors):
     return map(lambda key: graph[key], filter(lambda n: n in graph, neighbors))
 
+
 def packing_reduction(g: VCGraph, k: int) -> "bool, list(int), int":
     flag, num_revert = 1, 0
     if g.Packing.packing_is_violated():
@@ -262,7 +264,7 @@ def perform_reduction(
     g: VCGraph,
     k: int,
     rec_steps: int = -1,
-    reduction_mode = 0,
+    reduction_mode=0,
 ) -> "(bool, list(int), int, int)":
     """
     g: graph
@@ -281,13 +283,13 @@ def perform_reduction(
     # function: function that applies the rule
     rule_dict = {
         "deg_1": (lambda rs: reduction_mode >= 0, deg_1),
-        "dom": (lambda rs: reduction_mode == 0 or reduction_mode == 1,domination_rule),
-        "packing": (lambda rs: reduction_mode >=0 and g.Packing, packing_reduction),
+        "dom": (lambda rs: reduction_mode == 0 or reduction_mode == 1, domination_rule),
+        "packing": (lambda rs: reduction_mode >= 0 and g.Packing, packing_reduction),
         "deg_2": (lambda rs: reduction_mode >= 0, deg_2),
         "high_deg": (lambda rs: reduction_mode != 2 and k < g.max_deg, high_degree),
         "buss": (lambda rs: reduction_mode != 2 and k < g.max_deg, buss_rule),
         "unconfined": (lambda rs: reduction_mode >= 2, unconfined_rule),
-        "deg3_ind_set": (lambda rs: reduction_mode == 2 and (rs+1) % 1 == 0, deg3_ind_set)
+        "deg3_ind_set": (lambda rs: reduction_mode == 2 and (rs + 1) % 1 == 0, deg3_ind_set),
     }
     while True:
         applied_rule = False
@@ -299,13 +301,13 @@ def perform_reduction(
             vc.extend(vc_re)
             num_revert += re
             num_merges = extras[0] if extras else 0
-            k -= (len(vc_re) + num_merges)
+            k -= len(vc_re) + num_merges
             if not flag:
                 break  # if the flag is false, it indicates that there is no VC of size k and we break the while-loop after the for-loop.
             if len(vc_re) + num_merges > 0:
                 applied_rule = True
                 break  # if we reduced something, we want to start over with the first rule
-        
+
         if not flag or not applied_rule:
             break
 

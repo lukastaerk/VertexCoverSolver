@@ -5,17 +5,16 @@ import numpy as np
 def read_graph_fast():
     first_line = sys.stdin.readline().strip().split(" ")
     # can look like this: #6160 40207
-    # or this: p td 51795 63334 
+    # or this: p td 51795 63334
     n_m = []
     while first_line:
         w = first_line.pop(0)
-        # remove # from w 
+        # remove # from w
         if w[0] == "#":
             w = w[1:]
         # check if w is a number
         if w.isdigit():
             n_m.append(int(w))
-            
 
     num_vertices = n_m[0]
     num_edges = n_m[1]

@@ -8,26 +8,31 @@ from vcsolver.vc_graph import VCGraph
 from vcsolver.vc_solver import VCSolver
 from vcsolver.verifier import verifier
 
-class TestGraph(unittest.TestCase):
 
+class TestGraph(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestGraph, self).__init__(*args, **kwargs)
         self.start_time = time.time()
         instance = "tests/data/kernel"
         self.adjacency, self.edges, self.solution = self.read_graph(instance)
         self.graph = VCGraph(self.adjacency)
-        self.solver = VCSolver(len(self.adjacency), time_limit=50 + self.start_time, print_lower_bound=True, reduction_mode=1, preprocessing_mode=1)
+        self.solver = VCSolver(
+            len(self.adjacency),
+            time_limit=50 + self.start_time,
+            print_lower_bound=True,
+            reduction_mode=1,
+            preprocessing_mode=1,
+        )
 
     def read_graph(self, instance):
-        file = open(instance+".dimacs", "r")
+        file = open(instance + ".dimacs", "r")
         self.mock_stdin(file.read())
         file.close()
-        file_sol = open(instance+".solution", "r")
+        file_sol = open(instance + ".solution", "r")
         solution = int(file_sol.readline().strip())
         file_sol.close()
         adj, edges = read_graph_fast()
         return adj, edges, solution
-        
 
     def mock_stdin(self, mock_input):
         sys.stdin = io.StringIO(mock_input)
@@ -47,7 +52,7 @@ class TestGraph(unittest.TestCase):
         print("Time taken: ", end_time - start_time)
         # make a warning if time taken is greater than 20 seconds
         difference = end_time - start_time
-        if difference > 20: 
+        if difference > 20:
             warnings.warn(f"Execution time {difference} is greater than 20", UserWarning)
         self.assertTrue(verifier(vc, self.edges))
 
@@ -59,8 +64,6 @@ class TestGraph(unittest.TestCase):
         vc = solver.run(graph)
         self.assertTrue(verifier(vc, edges))
         self.assertEqual(vc.size, solution)
-        
-
 
 
 if __name__ == "__main__":

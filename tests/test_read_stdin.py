@@ -4,14 +4,14 @@ import io
 import time
 from vcsolver.read_stdin import read_graph_fast
 
-class TestReadGraph(unittest.TestCase):
 
+class TestReadGraph(unittest.TestCase):
     def mock_stdin(self, mock_input):
         sys.stdin = io.StringIO(mock_input)
 
     def test_read_graph_fast(self):
         # Mock the standard input
-        # read input for file 
+        # read input for file
         open_file = open("tests/data/kernel.dimacs", "r")
         self.mock_stdin(open_file.read())
         open_file.close()
@@ -22,6 +22,7 @@ class TestReadGraph(unittest.TestCase):
         self.assertEqual(len(adjacency_list), 200)
         self.assertEqual(len(edges), 837)
         self.assertGreaterEqual(1.0, end_time - start_time)
+
 
 if __name__ == "__main__":
     unittest.main()

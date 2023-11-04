@@ -16,9 +16,7 @@ def parse_arguments():
     parser.add_argument(
         "--preprocessing", "-p", action="store_true", help="Enable or disable preprocessing (default: disabled)"
     )
-    parser.add_argument(
-        "--greedy", "-g", action="store_true", help="Enable or disable greedy algorithm (default: disabled)"
-    )
+    parser.add_argument("--greedy", "-g", action="store_true", help="Enable or disable greedy algorithm (default: disabled)")
     parser.add_argument(
         "--local_search", "-ls", action="store_true", help="Enable or disable local search (default: disabled)"
     )
@@ -29,14 +27,18 @@ def parse_arguments():
         help="Enable or disable printing of lower bound (default: disabled)",
     )
     parser.add_argument("--ignore_limit", "-il", action="store_true", help="Ignore limit flag (default: disabled)")
-    parser.add_argument("--print_kernel", "-pk", action="store_true", help="Print kernel after preprocessing (default: disabled)")
+    parser.add_argument(
+        "--print_kernel", "-pk", action="store_true", help="Print kernel after preprocessing (default: disabled)"
+    )
     return parser.parse_args()
+
 
 def receive_signal_last_k(solver, graph, signum, frame):
     print("#last-k: %s" % (solver.last_k))
     print("#recursive steps: %s" % solver.recursive_steps)
     print("#", graph.reduction_hit_counter)
     sys.exit()
+
 
 def main():
     start_time = time.time()
@@ -60,7 +62,7 @@ def main():
     graph = VCGraph(adjacency_list)
     vc_solver = VCSolver(num_vertices, time_limit=50 + start_time, **args_dict)
 
-    signal.signal(signal.SIGINT, lambda s,f: receive_signal_last_k(vc_solver, graph, s,f))
+    signal.signal(signal.SIGINT, lambda s, f: receive_signal_last_k(vc_solver, graph, s, f))
     print("# finished init after %s sec" % (time.time() - start_time))
     vc = vc_solver.run(graph)
     print("# solution after %s sec" % (time.time() - start_time))

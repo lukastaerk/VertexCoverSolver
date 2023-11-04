@@ -17,8 +17,10 @@ UNCOVERED = 0
 REMOVED = -1
 CONTRACTED = -2
 
+
 def get_cover_vertices(solution: np.ndarray):
-    return np.nonzero(solution==COVERED)[0]
+    return np.nonzero(solution == COVERED)[0]
+
 
 def generate_deg_bags(degrees, indices):
     max_deg = max(degrees.max(), 3)  # deg_bags at least of size 3 to apply deg3 checks without index error
@@ -27,40 +29,43 @@ def generate_deg_bags(degrees, indices):
     set_add_for_array(deg_bags, degrees, indices)
     return deg_bags
 
+
 def resolve_merged_degree_2(merged_vertices, solution: np.ndarray):
     (v, x, y) = merged_vertices
     if solution[v]:
         if np.any(solution[[x, y]]):
             raise Exception("merging failed for v == COVERED!!!")
-        solution[[x, y]] =  COVERED
+        solution[[x, y]] = COVERED
         solution[v] = UNCOVERED
     else:
-        solution[v] =  COVERED
+        solution[v] = COVERED
         if np.any(solution[[x, y]]):
             raise Exception("merging failed!!!")
 
+
 def resolve_merged_degree_3(merged_vertices, solution: np.ndarray):
     (v, a, b, c) = merged_vertices
-    num_of_abc_in_vc = (solution[[a,b,c]]==COVERED).sum()
+    num_of_abc_in_vc = (solution[[a, b, c]] == COVERED).sum()
     if num_of_abc_in_vc == 0 or solution[v] == COVERED:
         raise Exception("merging failed!!!")
     if num_of_abc_in_vc == 2:
         solution[v] = COVERED
-        for i in range(0,3):
-            x = merged_vertices[i+1]
+        for i in range(0, 3):
+            x = merged_vertices[i + 1]
             if solution[x] == UNCOVERED:
-                xx = merged_vertices[((i+1)%3) + 1]
+                xx = merged_vertices[((i + 1) % 3) + 1]
                 if solution[xx] == UNCOVERED:
                     raise Exception("merging failed!!!")
-                solution[xx] = UNCOVERED # set the next one to UNCOVERED if a than b, if b than c, if c than a
+                solution[xx] = UNCOVERED  # set the next one to UNCOVERED if a than b, if b than c, if c than a
                 break
     if num_of_abc_in_vc == 1:
         solution[v] = COVERED
-        for x in [a,b,c]:
+        for x in [a, b, c]:
             if solution[x] == COVERED:
                 solution[x] = UNCOVERED
                 break
     # if num_of_abc_in_vc == 3: do nothing
+
 
 def resolve_merged_vertices(merge_stack: list, solution: np.ndarray):
     while len(merge_stack) > 0:
@@ -69,6 +74,7 @@ def resolve_merged_vertices(merge_stack: list, solution: np.ndarray):
             resolve_merged_degree_2(merged_v, solution)
         if len(merged_v) == 4:
             resolve_merged_degree_3(merged_v, solution)
+
 
 class VCGraph:
     """
@@ -89,7 +95,9 @@ class VCGraph:
         self.init_num_vertices = len(adj_list)  # is the actual number of vertices at init time for subgraphs
         if vc_solution is None:
             vc_solution = np.zeros(self.init_num_vertices, dtype=DTYPE)
-        self.vc_solution = vc_solution  # (-1 unknown, 1 solution, 0 removed) array indicating which vertex is part of the finished solution
+        self.vc_solution = (
+            vc_solution  # (-1 unknown, 1 solution, 0 removed) array indicating which vertex is part of the finished solution
+        )
         if degrees is None:
             degrees = np.array(list(map(len, adj_list)), dtype=DTYPE)
         if deg_bags is None:
@@ -125,7 +133,7 @@ class VCGraph:
 
     def set_click_cover(self):
         self.CliqueCover = CliqueCover(len(self.adj_list), self.adj_list, self.vc_solution)
-        lb = self.CliqueCover.clique_lb(1, self.deg_bags)
+        _ = self.CliqueCover.clique_lb(1, self.deg_bags)
 
     def copy(self):
         new_g = copy.copy(self)
@@ -152,7 +160,7 @@ class VCGraph:
         self.merge_stack.append((v, x, y))
         last_len_rs = len(self.revert_stack)
         if self.CliqueCover:
-            lb = self.CliqueCover.update()
+            _ = self.CliqueCover.update()
             # print("# lb in merge: ", lb)
             self.revert_stack.append(lambda: self.CliqueCover.revert_update())
 
@@ -180,7 +188,7 @@ class VCGraph:
                 [], [v] + list(x_y_neighbors_without_v)
             )  # vc_size -1 so only x is in the solution and y is not
             self.CliqueCover.update_c_lb(x, y)
-            lb = self.CliqueCover.update()
+            _ = self.CliqueCover.update()
             # print("# lb in merge2: ", lb)
             self.revert_stack.append(lambda: self.CliqueCover.undo_update_c_lb(x, y))
             self.revert_stack.append(lambda: self.CliqueCover.revert_update())
@@ -338,9 +346,7 @@ class VCGraph:
         # clique cover update TODO
         # self.inspect_for_clique_lb.extend(self.adj_list[v])
         # self.clique_size[self.clique[neighbors]] -= 1
-        self.adj_list[v] = self.adj_list[v].difference(
-            neighbors
-        )  # make a new set so the neighbors are not lost for revert
+        self.adj_list[v] = self.adj_list[v].difference(neighbors)  # make a new set so the neighbors are not lost for revert
         if update:
             neighbors_list = list(neighbors)
             self.update_degrees(neighbors_list)
@@ -355,9 +361,7 @@ class VCGraph:
 
         return lambda: self.add_edges(v, neighbors, update, packing_init)
 
-    def add_edges(
-        self, v: int, neighbors: set, update: bool = True, packing_init: bool = False
-    ) -> lambda: "remove_edges":
+    def add_edges(self, v: int, neighbors: set, update: bool = True, packing_init: bool = False) -> lambda: "remove_edges":
         """add back old edges of v to its neighbors"""
         self.adj_list[v].update(neighbors)
         set_add_for_set(self.adj_list, neighbors, v)

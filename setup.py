@@ -4,7 +4,9 @@ import numpy
 
 extentions = [
     Extension("src.vcsolver.utils", ["src/vcsolver/utils.pyx"], include_dirs=[numpy.get_include()]),
-    Extension("src.vcsolver.packing_constraints", ["src/vcsolver/packing_constraints.pyx"], include_dirs=[numpy.get_include()]),
+    Extension(
+        "src.vcsolver.packing_constraints", ["src/vcsolver/packing_constraints.pyx"], include_dirs=[numpy.get_include()]
+    ),
     Extension("src.vcsolver.clique_cover", ["src/vcsolver/clique_cover.pyx"], include_dirs=[numpy.get_include()]),
 ]
 
